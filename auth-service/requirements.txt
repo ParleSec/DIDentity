@@ -1,0 +1,11 @@
+fastapi>=0.68.1       # High-performance web framework for building APIs
+uvicorn>=0.15.0       # ASGI server to run FastAPI applications
+asyncpg>=0.24.0       # Asynchronous PostgreSQL driver for efficient database access
+pydantic>=1.8.2       # Data validation and settings management using Python type hints
+passlib[bcrypt]>=1.7.4  # Password hashing library (bcrypt for secure hashing)
+python-jose[cryptography]>=3.3.0   # JWT implementation for authentication
+pytest>=6.2.5         # Testing framework for unit and integration tests
+requests>=2.26.0      # HTTP library for demo script 
+email-validator>=1.1.3 
+python-multipart>=0.0.2
+prometheus-fastapi-instrumentator>=1.0.0
