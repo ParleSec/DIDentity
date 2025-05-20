@@ -49,21 +49,6 @@ The platform uses:
    - Prometheus: http://localhost:9090
    - Jaeger UI: http://localhost:16686
 
-### API Documentation
-
-Each service provides OpenAPI documentation:
-- Auth Service: http://localhost:8004/docs
-- DID Service: http://localhost:8001/docs
-- Credential Service: http://localhost:8002/docs
-- Verification Service: http://localhost:8003/docs
-
-### Available SDKs
-
-You can generate client SDKs for different languages:
-- TypeScript: http://localhost:8001/sdk/typescript
-- Python: http://localhost:8001/sdk/python
-- Java: http://localhost:8001/sdk/java
-
 ## Features
 
 - **Secure Authentication**: JWT-based authentication with refresh tokens
