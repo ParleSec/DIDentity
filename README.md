@@ -1,134 +1,116 @@
-# Decentralized Identity Management System
+# DIDentity
 
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.68.1-009688.svg?logo=fastapi)](https://fastapi.tiangolo.com)
-[![Python](https://img.shields.io/badge/Python-3.9+-blue.svg?logo=python)](https://www.python.org)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-336791.svg?logo=postgresql)](https://www.postgresql.org)
-[![Docker](https://img.shields.io/badge/Docker-20.10.8+-2496ED.svg?logo=docker)](https://www.docker.com)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
-[![Imports: isort](https://img.shields.io/badge/%20imports-isort-%231674b1?style=flat)](https://pycqa.github.io/isort/)
+A decentralized identity platform based on microservices architecture, implementing DIDs, Verifiable Credentials, and secure authentication.
 
-A microservices-based Decentralized Identity (DID) management system that enables secure identity creation, credential issuance, and verification.
+## Architecture
 
-## 🌟 Features
+DIDentity consists of several microservices:
 
-- **User Authentication**: Secure user registration and JWT-based authentication
-- **DID Management**: Create and manage Decentralized Identifiers
-- **Credential Issuance**: Issue verifiable credentials linked to DIDs
-- **Credential Verification**: Verify the authenticity of issued credentials
-- **Microservices Architecture**: Scalable and maintainable service separation
-- **Docker Integration**: Easy deployment with containerization
-- **Database Integration**: PostgreSQL for reliable data storage
-- **API Documentation**: Auto-generated Swagger/OpenAPI documentation
+- **Auth Service**: User authentication and authorization (port 8004)
+- **DID Service**: Decentralized Identifier (DID) management (port 8001)
+- **Credential Service**: Verifiable Credentials issuance and management (port 8002)
+- **Verification Service**: Verification of Credentials (port 8003)
 
-## 🛠️ Tech Stack
+The platform uses:
+- **PostgreSQL**: For persistent data storage
+- **HashiCorp Vault**: For secrets management
+- **RabbitMQ**: For event-driven communication between services
+- **Jaeger**: For distributed tracing
+- **Prometheus/Grafana**: For monitoring and alerting
 
-- **Backend**: FastAPI, Python 3.9+
-- **Database**: PostgreSQL 17
-- **Authentication**: JWT (JSON Web Tokens)
-- **Containerization**: Docker & Docker Compose
-- **Documentation**: OpenAPI (Swagger)
-- **Monitoring**: Prometheus & Grafana
-
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 
 - Docker and Docker Compose
-- Python 3.9 or higher
-- PostgreSQL 17
+- Git
 
-### Installation
+### Setup and Run
 
 1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/DIDentity.git
+   cd DIDentity
+   ```
+
+2. Start the services using Docker Compose:
+   ```bash
+   docker-compose up -d
+   ```
+
+3. The services will be available at:
+   - Auth Service: http://localhost:8004
+   - DID Service: http://localhost:8001
+   - Credential Service: http://localhost:8002
+   - Verification Service: http://localhost:8003
+   - RabbitMQ Management: http://localhost:15672 (guest/guest)
+   - Vault UI: http://localhost:8200 (token: root)
+   - Grafana: http://localhost:3000 (admin/admin)
+   - Prometheus: http://localhost:9090
+   - Jaeger UI: http://localhost:16686
+
+### API Documentation
+
+Each service provides OpenAPI documentation:
+- Auth Service: http://localhost:8004/docs
+- DID Service: http://localhost:8001/docs
+- Credential Service: http://localhost:8002/docs
+- Verification Service: http://localhost:8003/docs
+
+### Available SDKs
+
+You can generate client SDKs for different languages:
+- TypeScript: http://localhost:8001/sdk/typescript
+- Python: http://localhost:8001/sdk/python
+- Java: http://localhost:8001/sdk/java
+
+## Features
+
+- **Secure Authentication**: JWT-based authentication with refresh tokens
+- **DID Management**: Create and resolve DIDs using various methods (ethr, web, key)
+- **Verifiable Credentials**: Issue, manage, and verify credentials
+- **Event-Driven Architecture**: Microservices communicate via events
+- **Secret Management**: Secure storage of secrets with HashiCorp Vault
+- **Distributed Tracing**: Track requests across services with OpenTelemetry
+- **Monitoring**: Complete observability with Prometheus and Grafana
+
+## Example Usage
+
+### Create a User
+
 ```bash
-git clone https://github.com/ParleSec/DIDentity
-cd DIDentity
+curl -X POST http://localhost:8004/signup \
+  -H "Content-Type: application/json" \
+  -d '{"username":"testuser","email":"test@example.com","password":"password123"}'
 ```
 
-2. Create a `.env` file:
+### Create a DID
+
 ```bash
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=password
-POSTGRES_DB=decentralized_id
-DATABASE_URL=postgresql://postgres:password@db:5432/decentralized_id
-SECRET_KEY=your-secret-key-here
+curl -X POST http://localhost:8001/dids \
+  -H "Content-Type: application/json" \
+  -d '{"method":"ethr","identifier":"0x1234567890abcdef1234567890abcdef12345678"}'
 ```
 
-3. Build and start the services:
+### Resolve a DID
+
 ```bash
-docker-compose up -d
+curl http://localhost:8001/dids/did:ethr:0x1234567890abcdef1234567890abcdef12345678
 ```
 
-4. Verify all services are running:
-```bash
-docker-compose ps
+## Development
+
+### Project Structure
+
 ```
-
-### Running the Demo
-
-Test the complete flow using the provided demo script:
-```bash
-python demo.py
+DIDentity/
+├── auth-service/             # Authentication service
+├── did-service/              # DID management service
+├── credential-service/       # Credential service
+├── verification-service/     # Verification service
+├── monitoring/               # Monitoring configuration
+├── vault/                    # Vault configuration and scripts
+├── tests/                    # Test suites
+├── docker-compose.yml        # Docker Compose configuration
+└── README.md                 # This file
 ```
-
-## 📚 API Documentation
-
-After starting the services, access the API documentation at:
-- Auth Service: `http://localhost:8004/docs`
-- DID Service: `http://localhost:8001/docs`
-- Credential Service: `http://localhost:8002/docs`
-- Verification Service: `http://localhost:8003/docs`
-
-## 🏗️ Architecture
-
-The system consists of four microservices:
-
-1. **Auth Service** (Port 8004)
-   - User registration and authentication
-   - JWT token generation and validation
-
-2. **DID Service** (Port 8001)
-   - DID creation and management
-   - DID document storage and retrieval
-
-3. **Credential Service** (Port 8002)
-   - Credential issuance
-   - Credential storage and management
-
-4. **Verification Service** (Port 8003)
-   - Credential verification
-   - DID and credential validation
-
-## 🔍 Testing
-
-Run the test suite:
-```bash
-# Unit tests
-pytest tests/unit
-
-# Integration tests
-pytest tests/integration
-
-# End-to-end tests
-pytest tests/e2e
-```
-
-## 📊 Monitoring
-
-Access monitoring dashboards:
-- Prometheus: `http://localhost:9090`
-- Grafana: `http://localhost:3000`
-
-## 🛡️ Security Features
-
-- Password hashing with bcrypt
-- JWT-based authentication
-- Database connection pooling
-- CORS middleware
-- Input validation
-- Error handling and logging
-
-## 📝 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
