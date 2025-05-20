@@ -6,12 +6,22 @@ services:
     ports:
       - "8004:8000"
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=password
-      - DATABASE_URL=postgresql://postgres:password@db:5432/decentralized_id
+      - VAULT_ADDR=http://vault:8200
+      - VAULT_TOKEN=root
+      - RABBITMQ_HOST=rabbitmq
+      - SERVICE_NAME=auth-service
+      - OTLP_ENDPOINT=jaeger:4317
     depends_on:
       db:
         condition: service_healthy
+      vault:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      jaeger:
+        condition: service_started
+      vault-init:
+        condition: service_completed_successfully
     networks:
       - app-network
 
@@ -20,10 +30,22 @@ services:
     ports:
       - "8001:8000"
     environment:
-      - DATABASE_URL=postgresql://postgres:password@db:5432/decentralized_id
+      - VAULT_ADDR=http://vault:8200
+      - VAULT_TOKEN=root
+      - RABBITMQ_HOST=rabbitmq
+      - SERVICE_NAME=did-service
+      - OTLP_ENDPOINT=jaeger:4317
     depends_on:
       db:
         condition: service_healthy
+      vault:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      jaeger:
+        condition: service_started
+      vault-init:
+        condition: service_completed_successfully
     networks:
       - app-network
 
@@ -32,10 +54,22 @@ services:
     ports:
       - "8002:8000"
     environment:
-      - DATABASE_URL=postgresql://postgres:password@db:5432/decentralized_id
+      - VAULT_ADDR=http://vault:8200
+      - VAULT_TOKEN=root
+      - RABBITMQ_HOST=rabbitmq
+      - SERVICE_NAME=credential-service
+      - OTLP_ENDPOINT=jaeger:4317
     depends_on:
       db:
         condition: service_healthy
+      vault:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      jaeger:
+        condition: service_started
+      vault-init:
+        condition: service_completed_successfully
     networks:
       - app-network
 
@@ -44,10 +78,22 @@ services:
     ports:
       - "8003:8000"
     environment:
-      - DATABASE_URL=postgresql://postgres:password@db:5432/decentralized_id
+      - VAULT_ADDR=http://vault:8200
+      - VAULT_TOKEN=root
+      - RABBITMQ_HOST=rabbitmq
+      - SERVICE_NAME=verification-service
+      - OTLP_ENDPOINT=jaeger:4317
     depends_on:
       db:
         condition: service_healthy
+      vault:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      jaeger:
+        condition: service_started
+      vault-init:
+        condition: service_completed_successfully
     networks:
       - app-network
 
@@ -83,6 +129,46 @@ services:
     depends_on:
       - prometheus
 
+  vault:
+    image: hashicorp/vault:latest
+    cap_add:
+      - IPC_LOCK
+    ports:
+      - "8200:8200"
+    environment:
+      - VAULT_DEV_ROOT_TOKEN_ID=root
+      - VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200
+      - VAULT_ADDR=http://0.0.0.0:8200
+      # In production, switch to non-dev mode and use proper TLS
+      # This is a development configuration
+    volumes:
+      - vault-data:/vault/data
+    # Using dev mode for development but with persistence
+    # For production, replace with proper server configuration
+    command: server -dev -dev-root-token-id=root
+    healthcheck:
+      test: ["CMD", "vault", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - app-network
+
+  vault-init:
+    image: hashicorp/vault:latest
+    depends_on:
+      vault:
+        condition: service_healthy
+    volumes:
+      - ./vault/scripts:/vault/scripts
+    entrypoint: /bin/sh
+    command: /vault/scripts/init_vault.sh
+    environment:
+      - VAULT_ADDR=http://vault:8200
+      - VAULT_TOKEN=root
+    networks:
+      - app-network
+
   db:
     image: postgres:17
     environment:
@@ -102,10 +188,44 @@ services:
     networks:
       - app-network
 
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"   # RabbitMQ main port
+      - "15672:15672" # RabbitMQ management UI
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app-network
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    ports:
+      - "5775:5775/udp"
+      - "6831:6831/udp"
+      - "6832:6832/udp"
+      - "5778:5778"
+      - "16686:16686"   # UI
+      - "14268:14268"
+      - "14250:14250"
+      - "4317:4317"     # OTLP gRPC
+      - "4318:4318"     # OTLP HTTP
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    networks:
+      - app-network
+
 volumes:
   prometheus_data:
   grafana_data:
   db-data:
+  vault-data:
 
 networks:
   app-network:
