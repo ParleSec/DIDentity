@@ -1,5 +1,7 @@
 import asyncpg
 import logging
+import hvac
+import os
 from fastapi import HTTPException
 from typing import AsyncGenerator
 
@@ -7,14 +9,35 @@ from typing import AsyncGenerator
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
-# Constants
-DATABASE_URL = "postgresql://postgres:password@db:5432/decentralized_id"
+# Vault client setup
+vault_client = hvac.Client(
+    url=os.environ.get('VAULT_ADDR', 'http://vault:8200'),
+    token=os.environ.get('VAULT_TOKEN', 'root')
+)
+
+# Get secrets from Vault
+def get_secret(path, key=None):
+    try:
+        response = vault_client.secrets.kv.v2.read_secret_version(path=path)
+        if key:
+            return response['data']['data'].get(key)
+        return response['data']['data']
+    except Exception as e:
+        logger.error(f"Error fetching secret from Vault: {str(e)}")
+        # Fallback for local development
+        if path == 'database/config' and key == 'url':
+            return "postgresql://postgres:password@db:5432/decentralized_id"
+        raise
+
+# Get database URL from Vault
+def get_db_url():
+    return get_secret('database/config', 'url')
 
 # Database connection
 async def get_db_pool() -> AsyncGenerator[asyncpg.Pool, None]:
     try:
         pool = await asyncpg.create_pool(
-            DATABASE_URL,
+            get_db_url(),
             min_size=5,
             max_size=20,
             command_timeout=60
