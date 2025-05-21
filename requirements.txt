@@ -14,3 +14,5 @@ pika>=1.3.0          # RabbitMQ client for Python
 opentelemetry-api>=1.20.0     # OpenTelemetry API
 opentelemetry-sdk>=1.20.0     # OpenTelemetry SDK
 opentelemetry-exporter-otlp>=1.20.0  # OpenTelemetry OTLP exporter
+matplotlib>=3.5.1    # Visualization library for DID and credential graphics
+pillow>=9.0.0        # Python Imaging Library for enhanced visuals
