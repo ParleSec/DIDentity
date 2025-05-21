@@ -32,7 +32,7 @@ async def issue_credential(cred: CredentialIssue, pool=Depends(get_db_pool)):
 
             credential_id = f"cred:{uuid.uuid4()}"
             await conn.execute(
-                "INSERT INTO credentials (credential_id, holder_did, data) VALUES ($1, $2, $3)",
+                "INSERT INTO credentials (credential_id, issuer, holder, type, credential) VALUES ($1, 'system', $2, 'VerifiableCredential', $3)",
                 credential_id, cred.holder_did, json.dumps(cred.credential_data)
             )
             
