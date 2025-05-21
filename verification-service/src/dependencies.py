@@ -6,6 +6,7 @@ from typing import AsyncGenerator
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
+# Hardcoded connection string to ensure we're using the right format
 DATABASE_URL = "postgresql://postgres:password@db:5432/decentralized_id"
 
 async def get_db_pool() -> AsyncGenerator[asyncpg.Pool, None]:

@@ -202,6 +202,17 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), pool=Depends(g
             detail="Internal server error during login"
         )
 
+@app.post("/token", response_model=Token, tags=["auth"])
+async def token(form_data: OAuth2PasswordRequestForm = Depends(), pool=Depends(get_db_pool)):
+    """
+    OAuth2 compatible token endpoint.
+    
+    This endpoint is used for obtaining access tokens through the Password Grant flow.
+    It is compatible with standard OAuth2 clients.
+    """
+    # Reuse the login endpoint implementation
+    return await login(form_data, pool)
+
 @app.post("/token/refresh", response_model=Token, tags=["auth"])
 async def refresh_token(token_data: TokenRefresh):
     """
