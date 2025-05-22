@@ -35,7 +35,7 @@ The platform uses:
 
 2. Start the services using Docker Compose:
    ```bash
-   docker-compose up -d
+   sudo docker-compose up -d
    ```
 
 3. The services will be available at:
