@@ -1,24 +1,20 @@
 # DIDentity
 
-A decentralized identity platform based on microservices architecture, implementing DIDs, Verifiable Credentials, and secure authentication.
+[![Microservices](https://img.shields.io/badge/Architecture-Microservices-blue?style=for-the-badge&logo=docker)](https://docker.com/) [![Python](https://img.shields.io/badge/Backend-Python-blue?style=for-the-badge&logo=python)](https://www.python.org/)[![Infrastructure](https://img.shields.io/badge/Infrastructure-Docker%20%7C%20Vault%20%7C%20RabbitMQ-purple?style=for-the-badge&logo=docker)](https://docker.com/) [![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 
-## Architecture
+**DIDentity** is a comprehensive decentralized identity platform based on microservices architecture, implementing DIDs (Decentralized Identifiers), Verifiable Credentials, and secure authentication. Built with security and scalability in mind, DIDentity provides a complete solution for managing digital identity in a decentralized environment.
 
-DIDentity consists of several microservices:
+## Purpose & Motivation
 
-- **Auth Service**: User authentication and authorization (port 8004)
-- **DID Service**: Decentralized Identifier (DID) management (port 8001)
-- **Credential Service**: Verifiable Credentials issuance and management (port 8002)
-- **Verification Service**: Verification of Credentials (port 8003)
+Modern digital identity requires secure, user-controlled, and interoperable solutions. DIDentity aims to:
 
-The platform uses:
-- **PostgreSQL**: For persistent data storage
-- **HashiCorp Vault**: For secrets management
-- **RabbitMQ**: For event-driven communication between services
-- **Jaeger**: For distributed tracing
-- **Prometheus/Grafana**: For monitoring and alerting
+- Provide a complete implementation of W3C DID standards
+- Enable secure issuance and verification of Verifiable Credentials
+- Implement robust authentication mechanisms
+- Offer a scalable, microservices-based architecture
+- Create an extensible platform for decentralized identity use cases
 
-## Getting Started
+## Quick Installation
 
 ### Prerequisites
 
@@ -37,7 +33,6 @@ The platform uses:
    ```bash
    sudo docker-compose up -d
    ```
-
 3. The services will be available at:
    - Auth Service: http://localhost:8004
    - DID Service: http://localhost:8001
@@ -49,17 +44,70 @@ The platform uses:
    - Prometheus: http://localhost:9090
    - Jaeger UI: http://localhost:16686
 
-## Features
+## Architecture
+DIDentity consists of several microservices:
+- **Auth Service**: User authentication and authorization (port 8004)
+- **DID Service**: Decentralized Identifier (DID) management (port 8001)
+- **Credential Service**: Verifiable Credentials issuance and management (port 8002)
+- **Verification Service**: Verification of Credentials (port 8003)
 
-- **Secure Authentication**: JWT-based authentication with refresh tokens
-- **DID Management**: Create and resolve DIDs using various methods (ethr, web, key)
-- **Verifiable Credentials**: Issue, manage, and verify credentials
-- **Event-Driven Architecture**: Microservices communicate via events
-- **Secret Management**: Secure storage of secrets with HashiCorp Vault
-- **Distributed Tracing**: Track requests across services with OpenTelemetry
-- **Monitoring**: Complete observability with Prometheus and Grafana
+The platform uses:
+- **PostgreSQL**: For persistent data storage
+- **HashiCorp Vault**: For secrets management
+- **RabbitMQ**: For event-driven communication between services
+- **Jaeger**: For distributed tracing
+- **Prometheus/Grafana**: For monitoring and alerting
 
-## Example Usage
+
+## Key Features
+
+### 🔐 Core Identity Components
+- **Decentralized Identifiers (DIDs)** implementation with multiple methods (ethr, web, key)
+- **Verifiable Credentials** issuance, management, and verification
+- **Secure Authentication** with JWT-based tokens and refresh mechanism
+- **Event-Driven Architecture** for reliable communication between services
+
+### 🖥️ Service Architecture
+- **Auth Service**: User authentication and authorization (port 8004)
+- **DID Service**: Decentralized Identifier (DID) management (port 8001)
+- **Credential Service**: Verifiable Credentials issuance and management (port 8002)
+- **Verification Service**: Verification of Credentials (port 8003)
+
+### 🛡️ Security & Infrastructure
+- **HashiCorp Vault**: Secure storage and management of secrets
+- **PostgreSQL**: Reliable persistent data storage
+- **RabbitMQ**: Event-driven communication between services
+- **OpenTelemetry**: Distributed tracing with Jaeger
+- **Prometheus/Grafana**: Comprehensive monitoring and alerting
+
+## Service Architecture
+
+### Microservices Implementation
+
+DIDentity uses a microservices architecture providing:
+- **Scalability** through independent service scaling
+- **Resilience** through service isolation
+- **Flexibility** through technology independence
+- **Maintainability** through focused codebases
+- **Event-Driven** communication via RabbitMQ
+- **REST APIs** for service interfaces
+- **Asynchronous processing** of long-running tasks
+
+### Monitoring and Observability
+
+- **Distributed Tracing** with OpenTelemetry and Jaeger
+- **Metrics Collection** with Prometheus
+- **Visualization** with Grafana dashboards
+- **Log Aggregation** across all services
+
+### Security Implementation
+
+- **Secret Management** with HashiCorp Vault
+- **JWT Authentication** for secure API access
+- **Cryptographic Operations** for credential signatures
+- **Secure Communication** between services
+
+## API Examples
 
 ### Create a User
 
@@ -83,19 +131,159 @@ curl -X POST http://localhost:8001/dids \
 curl http://localhost:8001/dids/did:ethr:0x1234567890abcdef1234567890abcdef12345678
 ```
 
-## Development
+### Issue a Credential
 
-### Project Structure
+```bash
+curl -X POST http://localhost:8002/credentials \
+  -H "Content-Type: application/json" \
+  -d '{
+    "issuerDid": "did:ethr:0x1234567890abcdef1234567890abcdef12345678",
+    "subjectDid": "did:ethr:0x9876543210abcdef1234567890abcdef12345678",
+    "type": ["VerifiableCredential", "EducationCredential"],
+    "claims": {
+      "degree": "Bachelor of Science",
+      "institution": "Example University"
+    }
+  }'
+```
+
+### Verify a Credential
+
+```bash
+curl -X POST http://localhost:8003/verify \
+  -H "Content-Type: application/json" \
+  -d '{
+    "credential": {
+      // Credential JSON
+    }
+  }'
+```
+
+## Getting Started
+
+### Service Access Points
+
+After starting the services, they will be available at:
+
+- Auth Service: http://localhost:8004
+- DID Service: http://localhost:8001
+- Credential Service: http://localhost:8002
+- Verification Service: http://localhost:8003
+- RabbitMQ Management: http://localhost:15672 (guest/guest)
+- Vault UI: http://localhost:8200 (token: root)
+- Grafana: http://localhost:3000 (admin/admin)
+- Prometheus: http://localhost:9090
+- Jaeger UI: http://localhost:16686
+
+### Basic Usage Flow
+
+1. Create a user account
+2. Generate a new DID
+3. Issue a Verifiable Credential
+4. Verify the credential
+
+## Project Structure
 
 ```
 DIDentity/
 ├── auth-service/             # Authentication service
+│   └── src/                  # Auth service source code
 ├── did-service/              # DID management service
+│   └── src/                  # DID service source code
 ├── credential-service/       # Credential service
+│   └── src/                  # Credential service source code
 ├── verification-service/     # Verification service
+│   └── src/                  # Verification service source code
 ├── monitoring/               # Monitoring configuration
+│   └── grafana/              # Grafana dashboards and config
 ├── vault/                    # Vault configuration and scripts
 ├── tests/                    # Test suites
+│   ├── e2e/                  # End-to-end tests
+│   ├── integration/          # Integration tests
+│   └── unit/                 # Unit tests
+├── utils/                    # Utility scripts
+├── templates/                # Template files
 ├── docker-compose.yml        # Docker Compose configuration
-└── README.md                 # This file
+├── requirements.txt          # Python dependencies
+└── README.md                 # Documentation
 ```
+
+## Technical Details
+
+### DID Implementation
+
+- Support for multiple DID methods (ethr, web, key)
+- Complete DID resolution
+- DID document management
+- Key management and rotation
+
+### Verifiable Credentials
+
+- W3C Verifiable Credentials data model
+- JSON-LD and JWT credential formats
+- Credential issuance and revocation
+- Selective disclosure capabilities
+- Verification protocols
+
+### Authentication
+
+- JWT-based authentication
+- Refresh token mechanism
+- Role-based access control
+- OAuth 2.0 compatibility
+
+### Infrastructure
+
+- Containerized deployment with Docker
+- Service discovery
+- Secret management with Vault
+- Message queue with RabbitMQ
+
+## Testing
+
+```bash
+# Run all tests
+python -m pytest
+
+# Run specific test suite
+pytest tests/unit/
+```
+
+## Troubleshooting
+
+Common issues:
+
+1. **Service Connection Issues**: Ensure all containers are running with `docker-compose ps`
+
+2. **Database Errors**: Check PostgreSQL logs with `docker-compose logs postgres`
+
+3. **Authentication Failures**: Verify Vault is properly initialized and unsealed
+
+4. **Missing Events**: Check RabbitMQ management console for queue status
+
+## Disclaimer
+
+### Security Considerations
+- DIDentity implements decentralized identity standards and security practices, but no system can be guaranteed as completely secure.
+- The security of your identity data depends on proper key management and access controls.
+- While we strive for security best practices, software vulnerabilities may exist in DIDentity or its dependencies.
+
+### Legal Usage
+- Users are responsible for complying with all applicable laws related to identity, data protection, and privacy in their jurisdiction.
+- DIDentity should not be used to create or manage fraudulent identities.
+- Software is provided as-is with no warranty. Software is for educational purposes only.
+
+### No Warranty
+- DIDentity is provided "as is" without warranty of any kind, express or implied.
+- The authors and contributors are not liable for any damages or liability arising from the use of this software.
+- Users are responsible for implementing their own data backup strategies.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+<div align="center">
+<i>DIDentity - ParleSec</i>
+</div>
