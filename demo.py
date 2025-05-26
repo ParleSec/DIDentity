@@ -1,8 +1,10 @@
 import requests
 import json
 import time
+import uuid
 from typing import Dict, Optional
 import logging
+import random
 
 # Configure logging
 logging.basicConfig(
@@ -65,13 +67,19 @@ class IdentityDemo:
         logger.info("\n2. Creating DID...")
         try:
             headers = {"Authorization": f"Bearer {self.token}"}
+            # For key method, the identifier needs to be in valid Base58 format
+            
+            # Simple Base58 character set (no 0, O, I, l)
+            base58_chars = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+            random_id = ''.join(random.choice(base58_chars) for _ in range(16))
+            
             result = self._handle_request(
                 "POST",
                 f"{self.base_urls['did']}/dids",
                 headers=headers,
                 json={
                     "method": "key",
-                    "identifier": f"user-{int(time.time())}"
+                    "identifier": random_id
                 }
             )
             self.did = result["id"]
@@ -120,10 +128,13 @@ class IdentityDemo:
     def run_demo(self):
         """Run the complete demo flow"""
         try:
+            # Generate a random email to avoid conflicts
+            random_id = str(uuid.uuid4())[:8]
+            
             # Step 1: Register User
             self.register_user(
-                username="Walter White",
-                email="WW@example.com",
+                username="User" + random_id,
+                email=f"user_{random_id}@example.com",
                 password="SecurePassword123"
             )
 

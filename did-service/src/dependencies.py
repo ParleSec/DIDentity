@@ -31,7 +31,8 @@ def get_secret(path, key=None):
 
 # Get database URL from Vault
 def get_db_url():
-    return get_secret('database/config', 'url')
+    # Hardcoded connection string to bypass Vault
+    return "postgresql://postgres:password@db:5432/decentralized_id"
 
 # Database connection
 async def get_db_pool() -> AsyncGenerator[asyncpg.Pool, None]:

@@ -16,3 +16,7 @@ opentelemetry-sdk>=1.20.0     # OpenTelemetry SDK
 opentelemetry-exporter-otlp>=1.20.0  # OpenTelemetry OTLP exporter
 urllib3>=2.2.2 # not directly required, pinned by Snyk to avoid a vulnerability
 zipp>=3.19.1 # not directly required, pinned by Snyk to avoid a vulnerability
+matplotlib>=3.5.1    # Visualization library for DID and credential graphics
+pillow>=10.3.0        # Python Imaging Library for enhanced visuals
+fonttools>=4.43.0 # not directly required, pinned by Snyk to avoid a vulnerability
+numpy>=1.22.2 # not directly required, pinned by Snyk to avoid a vulnerability

@@ -26,7 +26,7 @@ async def verify_credential(cred: CredentialVerify, pool=Depends(get_db_pool)):
                 """
                 SELECT c.*, d.did, d.document 
                 FROM credentials c 
-                JOIN dids d ON c.holder_did = d.did 
+                JOIN dids d ON c.holder = d.did 
                 WHERE c.credential_id = $1
                 """,
                 cred.credential_id
@@ -36,7 +36,7 @@ async def verify_credential(cred: CredentialVerify, pool=Depends(get_db_pool)):
                 raise HTTPException(status_code=404, detail="Credential not found")
 
             # Parse JSON data
-            credential_data = json.loads(credential['data'])
+            credential_data = json.loads(credential['credential'])
             did_document = json.loads(credential['document'])
 
             verification_result = {
