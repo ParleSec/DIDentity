@@ -29,31 +29,42 @@ def get_secret(path, key=None):
         return response['data']['data']
     except Exception as e:
         logger.error(f"Error fetching secret from Vault: {str(e)}")
-        # Fallback for local development
-        if path == 'database/config' and key == 'url':
-            return "postgresql://postgres:password@db:5432/decentralized_id"
-        elif path == 'auth/jwt' and key == 'secret_key':
-            return "your-very-secure-secret-key-here"
-        elif path == 'auth/jwt' and key == 'algorithm':
-            return "HS256"
-        elif path == 'auth/jwt' and key == 'token_expire_minutes':
-            return 30
-        elif path == 'auth/jwt' and key == 'refresh_token_expire_days':
-            return 7
-        raise
+        # In production, fail fast instead of using fallbacks
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to retrieve secrets from Vault. Please check Vault configuration."
+        )
 
 # Constants from Vault
 def get_db_url():
-    # Hardcoded connection string to bypass Vault
-    return "postgresql://postgres:password@db:5432/decentralized_id"
+    """Get database URL from Vault"""
+    try:
+        db_config = get_secret('database/config')
+        # Construct URL from Vault secrets
+        username = db_config.get('username', 'postgres')
+        password = db_config.get('password')
+        host = db_config.get('host', 'db')
+        port = db_config.get('port', '5432')
+        database = db_config.get('database', 'decentralized_id')
+        
+        return f"postgresql://{username}:{password}@{host}:{port}/{database}"
+    except Exception as e:
+        logger.error(f"Failed to get database URL from Vault: {str(e)}")
+        raise
 
 def get_jwt_settings():
-    return {
-        'secret_key': get_secret('auth/jwt', 'secret_key'),
-        'algorithm': get_secret('auth/jwt', 'algorithm'),
-        'expire_minutes': int(get_secret('auth/jwt', 'token_expire_minutes')),
-        'refresh_expire_days': int(get_secret('auth/jwt', 'refresh_token_expire_days') or 7)
-    }
+    """Get JWT settings from Vault"""
+    try:
+        jwt_config = get_secret('auth/jwt')
+        return {
+            'secret_key': jwt_config.get('secret_key'),
+            'algorithm': jwt_config.get('algorithm', 'HS256'),
+            'expire_minutes': int(jwt_config.get('token_expire_minutes', 30)),
+            'refresh_expire_days': int(jwt_config.get('refresh_token_expire_days', 7))
+        }
+    except Exception as e:
+        logger.error(f"Failed to get JWT settings from Vault: {str(e)}")
+        raise
 
 # Security
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
