@@ -18,7 +18,7 @@ vault_client = hvac.Client(
 # Get secrets from Vault
 def get_secret(path, key=None):
     try:
-        response = vault_client.secrets.kv.v2.read_secret_version(path=path)
+        response = vault_client.secrets.kv.v2.read_secret_version(path=path, mount_point='kv')
         if key:
             return response['data']['data'].get(key)
         return response['data']['data']

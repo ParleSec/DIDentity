@@ -5,13 +5,14 @@ from fastapi.openapi.docs import get_swagger_ui_html, get_redoc_html
 from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from .schemas import UserCreate, UserLogin, Token, TokenRefresh, TokenRevoke
-from .dependencies import get_db_pool, oauth2_scheme, verify_token, verify_refresh_token, pwd_context, logger
+from .dependencies import get_db_pool, oauth2_scheme, verify_token, verify_refresh_token, pwd_context, logger, get_db_url
 from .dependencies import create_access_token, create_refresh_token, create_tokens, revoke_token
 from .messaging import event_bus
 from .telemetry import extract_context_from_request, create_span, add_span_attributes, mark_span_error
 from prometheus_fastapi_instrumentator import Instrumentator
 import os
 import json
+import asyncpg
 
 # Set service name for messaging
 os.environ["SERVICE_NAME"] = "auth-service"
@@ -271,9 +272,12 @@ async def health_check():
     Health check endpoint that verifies the service and database connection.
     """
     try:
-        pool = await get_db_pool().__anext__()
+        # Test database connection
+        db_url = get_db_url()
+        pool = await asyncpg.create_pool(db_url, min_size=1, max_size=1, command_timeout=5)
         async with pool.acquire() as conn:
             await conn.fetchval("SELECT 1")
+        await pool.close()
         return {"status": "healthy", "database": "connected"}
     except Exception as e:
         logger.error(f"Health check failed: {str(e)}")
