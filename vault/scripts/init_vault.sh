@@ -78,4 +78,4 @@ else
 fi
 
 echo "Vault initialization completed successfully!"
-echo "In a production environment, secure the root token and unseal keys appropriately." 
+echo "In a production environment, secure the root token and unseal keys appropriately."

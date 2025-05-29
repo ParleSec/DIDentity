@@ -219,6 +219,32 @@ services:
       - app-network
     restart: unless-stopped
 
+  monitoring-dashboard:
+    build: ./monitoring-dashboard
+    ports:
+      - "8080:8000"
+    volumes:
+      - ./monitoring-dashboard:/app
+    environment:
+      - VAULT_ADDR=http://vault:8200
+      - VAULT_TOKEN=root
+    depends_on:
+      db:
+        condition: service_healthy
+      vault:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      jaeger:
+        condition: service_started
+      prometheus:
+        condition: service_started
+      grafana:
+        condition: service_started
+    networks:
+      - app-network
+    restart: unless-stopped
+
   prometheus:
     image: prom/prometheus:latest
     volumes:
