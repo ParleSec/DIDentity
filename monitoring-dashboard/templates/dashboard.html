@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DIDentity Monitoring Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/script.js" defer></script>
+    <style>
+        .iframe-container {
+            position: relative;
+            overflow: hidden;
+            width: 100%;
+            padding-top: 56.25%; /* 16:9 Aspect Ratio */
+        }
+        .iframe-container iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            right: 0;
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+        .status-healthy {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .tab-button.active {
+            border-bottom-color: #3b82f6;
+            color: #3b82f6;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <!-- Header -->
+    <header class="bg-white shadow-md">
+        <div class="container mx-auto px-4 py-4">
+            <div class="flex items-center justify-between">
+                <h1 class="text-2xl font-bold text-gray-800">
+                    <i class="fas fa-shield-alt text-blue-600 mr-2"></i>
+                    DIDentity Monitoring Dashboard
+                </h1>
+                <div class="flex items-center space-x-4">
+                    <span class="text-sm text-gray-600">Auto-refresh: <span id="refresh-timer">30</span>s</span>
+                    <button onclick="location.reload()" class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-6">
+        <!-- Overview Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <!-- Services Status -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-600 text-sm">Services</p>
+                        <p class="text-2xl font-bold">{{ healthy_services }}/{{ total_services }}</p>
+                    </div>
+                    <div class="text-3xl {% if healthy_services == total_services %}text-green-500{% else %}text-yellow-500{% endif %}">
+                        <i class="fas fa-server"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Monitoring Tools Status -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-600 text-sm">Monitoring Tools</p>
+                        <p class="text-2xl font-bold">{{ healthy_monitoring }}/{{ total_monitoring }}</p>
+                    </div>
+                    <div class="text-3xl {% if healthy_monitoring == total_monitoring %}text-green-500{% else %}text-yellow-500{% endif %}">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- System Status -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-600 text-sm">System Status</p>
+                        <p class="text-2xl font-bold">
+                            {% if healthy_services == total_services and healthy_monitoring == total_monitoring %}
+                                Healthy
+                            {% elif healthy_services > 0 %}
+                                Degraded
+                            {% else %}
+                                Critical
+                            {% endif %}
+                        </p>
+                    </div>
+                    <div class="text-3xl {% if healthy_services == total_services and healthy_monitoring == total_monitoring %}text-green-500{% elif healthy_services > 0 %}text-yellow-500{% else %}text-red-500{% endif %}">
+                        <i class="fas fa-heartbeat"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Links -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <p class="text-gray-600 text-sm mb-2">Quick Access</p>
+                <div class="grid grid-cols-2 gap-2">
+                    <a href="http://localhost:3000" target="_blank" rel="noopener" class="text-blue-600 hover:text-blue-800 text-sm">
+                        <i class="fas fa-chart-bar"></i> Grafana
+                    </a>
+                    <a href="http://localhost:16686" target="_blank" rel="noopener" class="text-blue-600 hover:text-blue-800 text-sm">
+                        <i class="fas fa-project-diagram"></i> Jaeger
+                    </a>
+                    <a href="http://localhost:9090" target="_blank" rel="noopener" class="text-blue-600 hover:text-blue-800 text-sm">
+                        <i class="fas fa-database"></i> Prometheus
+                    </a>
+                    <a href="http://localhost:15672" target="_blank" rel="noopener" class="text-blue-600 hover:text-blue-800 text-sm">
+                        <i class="fas fa-envelope"></i> RabbitMQ
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Service Status Grid -->
+        <div class="bg-white rounded-lg shadow mb-6">
+            <div class="p-4 border-b">
+                <h2 class="text-lg font-semibold">
+                    <i class="fas fa-server text-blue-600 mr-2"></i>
+                    Service Health Status
+                </h2>
+            </div>
+            <div class="p-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {% for service in services %}
+                    <div class="border rounded-lg p-4 {% if service.status == 'healthy' %}border-green-300 bg-green-50{% else %}border-red-300 bg-red-50{% endif %}">
+                        <div class="flex items-center justify-between mb-2">
+                            <h3 class="font-semibold">{{ service.name }}</h3>
+                            <span class="{% if service.status == 'healthy' %}text-green-600 status-healthy{% else %}text-red-600{% endif %}">
+                                <i class="fas fa-circle"></i>
+                            </span>
+                        </div>
+                        <p class="text-sm text-gray-600">Port: {{ service.port }}</p>
+                        <p class="text-sm {% if service.status == 'healthy' %}text-green-600{% else %}text-red-600{% endif %}">
+                            Status: {{ service.status|title }}
+                        </p>
+                        {% if service.status == 'healthy' and service.details.database %}
+                        <p class="text-xs text-gray-500 mt-1">Database: {{ service.details.database }}</p>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Monitoring Tools Tabs -->
+        <div class="bg-white rounded-lg shadow">
+            <div class="border-b">
+                <div class="flex">
+                    <button class="tab-button px-6 py-3 font-semibold border-b-2 border-transparent hover:text-blue-600 active" onclick="showTab('grafana')">
+                        <i class="fas fa-chart-bar mr-2"></i>Grafana
+                    </button>
+                    <button class="tab-button px-6 py-3 font-semibold border-b-2 border-transparent hover:text-blue-600" onclick="showTab('prometheus')">
+                        <i class="fas fa-database mr-2"></i>Prometheus
+                    </button>
+                    <button class="tab-button px-6 py-3 font-semibold border-b-2 border-transparent hover:text-blue-600" onclick="showTab('jaeger')">
+                        <i class="fas fa-project-diagram mr-2"></i>Jaeger
+                    </button>
+                    <button class="tab-button px-6 py-3 font-semibold border-b-2 border-transparent hover:text-blue-600" onclick="showTab('rabbitmq')">
+                        <i class="fas fa-envelope mr-2"></i>RabbitMQ
+                    </button>
+                    <button class="tab-button px-6 py-3 font-semibold border-b-2 border-transparent hover:text-blue-600" onclick="showTab('overview')">
+                        <i class="fas fa-th mr-2"></i>Overview
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tab Contents -->
+            <div class="p-4">
+                <!-- Grafana Tab -->
+                <div id="grafana-tab" class="tab-content active">
+                    {% for tool in monitoring_tools %}
+                        {% if tool.name == 'Grafana' and tool.status == 'healthy' %}
+                        <div class="iframe-container">
+                            <iframe src="{{ tool.embed_url }}" allowfullscreen></iframe>
+                        </div>
+                        {% elif tool.name == 'Grafana' %}
+                        <div class="text-center py-12">
+                            <i class="fas fa-exclamation-triangle text-6xl text-yellow-500 mb-4"></i>
+                            <p class="text-xl text-gray-600">Grafana is currently unavailable</p>
+                            <a href="{{ tool.url }}" target="_blank" class="text-blue-600 hover:text-blue-800 mt-2 inline-block">
+                                Try opening directly →
+                            </a>
+                        </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+
+                <!-- Prometheus Tab -->
+                <div id="prometheus-tab" class="tab-content">
+                    {% for tool in monitoring_tools %}
+                        {% if tool.name == 'Prometheus' and tool.status == 'healthy' %}
+                        <div class="iframe-container">
+                            <iframe src="{{ tool.embed_url }}" allowfullscreen></iframe>
+                        </div>
+                        {% elif tool.name == 'Prometheus' %}
+                        <div class="text-center py-12">
+                            <i class="fas fa-exclamation-triangle text-6xl text-yellow-500 mb-4"></i>
+                            <p class="text-xl text-gray-600">Prometheus is currently unavailable</p>
+                            <a href="{{ tool.url }}" target="_blank" class="text-blue-600 hover:text-blue-800 mt-2 inline-block">
+                                Try opening directly →
+                            </a>
+                        </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+
+                <!-- Jaeger Tab -->
+                <div id="jaeger-tab" class="tab-content">
+                    {% for tool in monitoring_tools %}
+                        {% if tool.name == 'Jaeger' and tool.status == 'healthy' %}
+                        <div class="iframe-container">
+                            <iframe src="{{ tool.embed_url }}" allowfullscreen></iframe>
+                        </div>
+                        {% elif tool.name == 'Jaeger' %}
+                        <div class="text-center py-12">
+                            <i class="fas fa-exclamation-triangle text-6xl text-yellow-500 mb-4"></i>
+                            <p class="text-xl text-gray-600">Jaeger is currently unavailable</p>
+                            <a href="{{ tool.url }}" target="_blank" class="text-blue-600 hover:text-blue-800 mt-2 inline-block">
+                                Try opening directly →
+                            </a>
+                        </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+
+                <!-- RabbitMQ Tab -->
+                <div id="rabbitmq-tab" class="tab-content">
+                    <div class="bg-yellow-50 border border-yellow-300 rounded p-4 mb-4">
+                        <p class="text-yellow-800">
+                            <i class="fas fa-info-circle mr-2"></i>
+                            RabbitMQ Management UI requires authentication. Default credentials: guest/guest
+                        </p>
+                    </div>
+                    {% for tool in monitoring_tools %}
+                        {% if tool.name == 'RabbitMQ' %}
+                        <div class="text-center">
+                            <a href="{{ tool.url }}" target="_blank" class="inline-block bg-blue-500 text-white px-6 py-3 rounded hover:bg-blue-600">
+                                <i class="fas fa-external-link-alt mr-2"></i>
+                                Open RabbitMQ Management UI
+                            </a>
+                        </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+
+                <!-- Overview Tab -->
+                <div id="overview-tab" class="tab-content">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {% for tool in monitoring_tools %}
+                        <div class="border rounded-lg p-4 {% if tool.status == 'healthy' %}border-green-300 bg-green-50{% else %}border-red-300 bg-red-50{% endif %}">
+                            <div class="flex items-center justify-between mb-2">
+                                <h3 class="font-semibold">{{ tool.name }}</h3>
+                                <span class="{% if tool.status == 'healthy' %}text-green-600{% else %}text-red-600{% endif %}">
+                                    <i class="fas fa-circle"></i>
+                                </span>
+                            </div>
+                            <p class="text-sm text-gray-600 mb-3">Port: {{ tool.port }}</p>
+                            <a href="{{ tool.url }}" target="_blank" class="text-blue-600 hover:text-blue-800">
+                                <i class="fas fa-external-link-alt mr-1"></i>
+                                Open {{ tool.name }}
+                            </a>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Tab switching
+        function showTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Remove active class from all buttons
+            document.querySelectorAll('.tab-button').forEach(button => {
+                button.classList.remove('active');
+            });
+            
+            // Show selected tab
+            document.getElementById(tabName + '-tab').classList.add('active');
+            
+            // Mark button as active
+            event.target.classList.add('active');
+        }
+
+        // Auto-refresh timer
+        let refreshTimer = 30;
+        setInterval(() => {
+            refreshTimer--;
+            document.getElementById('refresh-timer').textContent = refreshTimer;
+            if (refreshTimer <= 0) {
+                location.reload();
+            }
+        }, 1000);
+
+        // Auto-refresh every 30 seconds
+        setTimeout(() => {
+            location.reload();
+        }, 30000);
+    </script>
+</body>
+</html>
