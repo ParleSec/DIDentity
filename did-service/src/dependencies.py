@@ -2,6 +2,7 @@ import asyncpg
 import logging
 import hvac
 import os
+import requests
 from fastapi import HTTPException
 from typing import AsyncGenerator
 
@@ -18,12 +19,21 @@ vault_client = hvac.Client(
 # Get secrets from Vault
 def get_secret(path, key=None):
     try:
-        response = vault_client.secrets.kv.v2.read_secret_version(path=path, mount_point='kv')
+        # Use direct HTTP request to ensure correct path
+        url = f"{vault_client.url}/v1/kv/data/{path}"
+        headers = {"X-Vault-Token": vault_client.token}
+        
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        
+        data = response.json()
+        secret_data = data['data']['data']
+        
         if key:
-            return response['data']['data'].get(key)
-        return response['data']['data']
+            return secret_data.get(key)
+        return secret_data
     except Exception as e:
-        logger.error(f"Error fetching secret from Vault: {str(e)}")
+        logger.error(f"Error fetching secret from Vault: {e}, on get {vault_client.url}/v1/kv/data/{path}")
         # In production, fail fast instead of using fallbacks
         raise HTTPException(
             status_code=500,
