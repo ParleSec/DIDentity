@@ -91,7 +91,18 @@ SERVICES = {
 }
 
 MONITORING_TOOLS = {
-    "grafana": {"name": "Grafana", "url": "http://grafana:3000", "port": 3000, "embed_path": "/d/didservices/dididentity-services?orgId=1&refresh=5s&kiosk"},
+    "grafana": {
+        "name": "Grafana", 
+        "url": "http://grafana:3000", 
+        "port": 3000, 
+        "embed_path": "/d/didservices/dididentity-services?orgId=1&refresh=5s&kiosk=tv&theme=light",
+        "embed_alternatives": [
+            "/d-solo/didservices/dididentity-services?orgId=1&refresh=5s&kiosk=tv&theme=light&panelId=2",
+            "/d/didservices/dididentity-services?orgId=1&refresh=5s&kiosk",
+            "/d/didservices/dididentity-services?orgId=1&kiosk=tv",
+            "/d/didservices/dididentity-services?orgId=1"
+        ]
+    },
     "prometheus": {"name": "Prometheus", "url": "http://prometheus:9090", "port": 9090, "embed_path": "/graph"},
     "jaeger": {"name": "Jaeger", "url": "http://jaeger:16686", "port": 16686, "embed_path": "/search?service=auth-service"},
     "rabbitmq": {"name": "RabbitMQ", "url": "http://rabbitmq:15672", "port": 15672, "embed_path": "/"},
@@ -131,13 +142,22 @@ async def check_monitoring_tool_health(tool_name: str, tool_info: Dict) -> Dict:
             
             response = await client.get(tool_info["url"], headers=headers, follow_redirects=True)
             if response.status_code in [200, 301, 302, 401]:  # 401 for RabbitMQ is expected
-                return {
+                result = {
                     "name": tool_info["name"],
                     "status": "healthy",
                     "url": f"http://localhost:{tool_info['port']}",
                     "embed_url": f"http://localhost:{tool_info['port']}{tool_info.get('embed_path', '')}",
                     "port": tool_info["port"]
                 }
+                
+                # Add embed alternatives for Grafana
+                if tool_name == "grafana" and "embed_alternatives" in tool_info:
+                    result["embed_alternatives"] = [
+                        f"http://localhost:{tool_info['port']}{alt_path}" 
+                        for alt_path in tool_info["embed_alternatives"]
+                    ]
+                
+                return result
     except Exception as e:
         pass
     

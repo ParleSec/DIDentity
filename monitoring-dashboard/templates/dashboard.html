@@ -194,16 +194,51 @@
                 <div id="grafana-tab" class="tab-content active">
                     {% for tool in monitoring_tools %}
                         {% if tool.name == 'Grafana' and tool.status == 'healthy' %}
-                        <div class="iframe-container">
-                            <iframe src="{{ tool.embed_url }}" allowfullscreen></iframe>
+                            
+                            <!-- Primary embed attempt -->
+                            <div class="iframe-container mb-4" id="grafana-iframe-container">
+                                <iframe 
+                                    src="{{ tool.embed_url }}" 
+                                    allowfullscreen
+                                    sandbox="allow-same-origin allow-scripts allow-forms"
+                                    onload="handleGrafanaLoad()"
+                                    onerror="handleGrafanaError()">
+                                </iframe>
+                            </div>
+                            
+                            <!-- Fallback options -->
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <a href="{{ tool.url }}" target="_blank" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 text-center">
+                                    <i class="fas fa-external-link-alt mr-2"></i>
+                                    Open Full Grafana
+                                </a>
+                                <a href="{{ tool.url }}/d/didservices/dididentity-services?orgId=1&kiosk" target="_blank" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 text-center">
+                                    <i class="fas fa-tv mr-2"></i>
+                                    Kiosk Mode
+                                </a>
+                                <a href="{{ tool.url }}/d/didservices/dididentity-services?orgId=1" target="_blank" class="bg-purple-500 text-white px-4 py-2 rounded hover:bg-purple-600 text-center">
+                                    <i class="fas fa-chart-line mr-2"></i>
+                                    Dashboard View
+                                </a>
+                            </div>
                         </div>
                         {% elif tool.name == 'Grafana' %}
                         <div class="text-center py-12">
                             <i class="fas fa-exclamation-triangle text-6xl text-yellow-500 mb-4"></i>
-                            <p class="text-xl text-gray-600">Grafana is currently unavailable</p>
-                            <a href="{{ tool.url }}" target="_blank" class="text-blue-600 hover:text-blue-800 mt-2 inline-block">
-                                Try opening directly →
-                            </a>
+                            <p class="text-xl text-gray-600 mb-4">Grafana is currently unavailable</p>
+                            <div class="space-y-2">
+                                <p class="text-gray-500">Try these options:</p>
+                                <div class="flex justify-center space-x-4">
+                                    <a href="http://localhost:3000" target="_blank" class="text-blue-600 hover:text-blue-800">
+                                        <i class="fas fa-external-link-alt mr-1"></i>
+                                        Open Grafana directly
+                                    </a>
+                                    <button onclick="location.reload()" class="text-green-600 hover:text-green-800">
+                                        <i class="fas fa-sync-alt mr-1"></i>
+                                        Retry connection
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                         {% endif %}
                     {% endfor %}
@@ -292,6 +327,17 @@
     </main>
 
     <script>
+        // Grafana embed URLs - primary and fallbacks
+        const grafanaBaseUrl = 'http://localhost:3000';
+        const grafanaEmbedUrls = [
+            '{{ monitoring_tools|selectattr("name", "equalto", "Grafana")|first|attr("embed_url") if monitoring_tools|selectattr("name", "equalto", "Grafana")|first else "" }}',
+            grafanaBaseUrl + '/d/didservices/dididentity-services?orgId=1&refresh=5s&kiosk',
+            grafanaBaseUrl + '/d/didservices/dididentity-services?orgId=1&kiosk=tv',
+            grafanaBaseUrl + '/d/didservices/dididentity-services?orgId=1'
+        ];
+        
+        let grafanaEmbedAttempts = 0;
+
         // Tab switching
         function showTab(tabName) {
             // Hide all tabs
@@ -310,6 +356,90 @@
             // Mark button as active
             event.target.classList.add('active');
         }
+
+        // Grafana iframe handling with multiple URL attempts
+        function handleGrafanaLoad() {
+            console.log('Grafana iframe loaded successfully');
+            const errorMsg = document.getElementById('grafana-error-msg');
+            if (errorMsg) {
+                errorMsg.style.display = 'none';
+            }
+        }
+
+        function handleGrafanaError() {
+            console.log('Grafana iframe failed to load, attempt:', grafanaEmbedAttempts + 1);
+            tryNextGrafanaUrl();
+        }
+
+        function tryNextGrafanaUrl() {
+            grafanaEmbedAttempts++;
+            
+            if (grafanaEmbedAttempts < grafanaEmbedUrls.length) {
+                const nextUrl = grafanaEmbedUrls[grafanaEmbedAttempts];
+                console.log('Trying Grafana URL:', nextUrl);
+                
+                const container = document.getElementById('grafana-iframe-container');
+                if (container) {
+                    container.innerHTML = '<div class="text-center py-4 bg-blue-50 border border-blue-300 rounded mb-2"><p class="text-blue-800 text-sm"><i class="fas fa-spinner fa-spin mr-2"></i>Trying alternative embed URL (' + (grafanaEmbedAttempts + 1) + '/' + grafanaEmbedUrls.length + ')...</p></div><iframe src="' + nextUrl + '" allowfullscreen sandbox="allow-same-origin allow-scripts allow-forms" onload="handleGrafanaLoad()" onerror="handleGrafanaError()" style="width: 100%; height: 100%; border: none;"></iframe>';
+                }
+            } else {
+                showGrafanaError();
+            }
+        }
+
+        function showGrafanaError() {
+            const container = document.getElementById('grafana-iframe-container');
+            if (container) {
+                container.innerHTML = '<div class="text-center py-12 bg-yellow-50 border border-yellow-300 rounded" id="grafana-error-msg"><i class="fas fa-exclamation-triangle text-4xl text-yellow-500 mb-4"></i><p class="text-lg text-gray-700 mb-2">Unable to embed Grafana dashboard</p><p class="text-sm text-gray-600 mb-4">Tried ' + grafanaEmbedAttempts + ' different embed URLs. This is likely due to iframe restrictions or CORS policies.</p><div class="space-y-2"><button onclick="retryGrafanaEmbed()" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 mr-2"><i class="fas fa-redo mr-1"></i> Retry All URLs</button><button onclick="openGrafanaDirectly()" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"><i class="fas fa-external-link-alt mr-1"></i> Open Grafana Directly</button></div></div>';
+            }
+        }
+
+        function retryGrafanaEmbed() {
+            grafanaEmbedAttempts = 0;
+            const container = document.getElementById('grafana-iframe-container');
+            if (container && grafanaEmbedUrls.length > 0) {
+                const firstUrl = grafanaEmbedUrls[0];
+                container.innerHTML = '<iframe src="' + firstUrl + '" allowfullscreen sandbox="allow-same-origin allow-scripts allow-forms" onload="handleGrafanaLoad()" onerror="handleGrafanaError()" style="width: 100%; height: 100%; border: none;"></iframe>';
+            }
+        }
+
+        function openGrafanaDirectly() {
+            window.open('http://localhost:3000', '_blank');
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Grafana embed URLs available:', grafanaEmbedUrls);
+            
+            setTimeout(() => {
+                const grafanaIframe = document.querySelector('#grafana-iframe-container iframe');
+                if (grafanaIframe) {
+                    try {
+                        grafanaIframe.onload = function() {
+                            try {
+                                const iframeDoc = grafanaIframe.contentDocument || grafanaIframe.contentWindow.document;
+                                if (!iframeDoc || iframeDoc.body.innerHTML === '') {
+                                    setTimeout(() => {
+                                        if (grafanaEmbedAttempts === 0) {
+                                            handleGrafanaError();
+                                        }
+                                    }, 3000);
+                                }
+                            } catch (e) {
+                                console.log('Grafana iframe blocked by CORS policy');
+                                setTimeout(() => {
+                                    if (grafanaEmbedAttempts === 0) {
+                                        handleGrafanaError();
+                                    }
+                                }, 2000);
+                            }
+                        };
+                    } catch (e) {
+                        console.log('Error setting up iframe monitoring:', e);
+                    }
+                }
+            }, 1000);
+        });
 
         // Auto-refresh timer
         let refreshTimer = 30;
