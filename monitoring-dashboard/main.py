@@ -157,6 +157,31 @@ async def check_monitoring_tool_health(tool_name: str, tool_info: Dict) -> Dict:
                         for alt_path in tool_info["embed_alternatives"]
                     ]
                 
+                # Add additional RabbitMQ information
+                if tool_name == "rabbitmq":
+                    try:
+                        # Try to get basic API info
+                        api_response = await client.get(f"{tool_info['url']}/api/overview", headers=headers)
+                        if api_response.status_code == 200:
+                            api_data = api_response.json()
+                            result["rabbitmq_info"] = {
+                                "version": api_data.get("rabbitmq_version", "Unknown"),
+                                "erlang_version": api_data.get("erlang_version", "Unknown"),
+                                "node_name": api_data.get("node", "Unknown"),
+                                "management_version": api_data.get("management_version", "Unknown")
+                            }
+                            
+                            # Get queue information
+                            queues_response = await client.get(f"{tool_info['url']}/api/queues", headers=headers)
+                            if queues_response.status_code == 200:
+                                queues_data = queues_response.json()
+                                result["rabbitmq_info"]["total_queues"] = len(queues_data)
+                                result["rabbitmq_info"]["total_messages"] = sum(q.get("messages", 0) for q in queues_data)
+                                
+                    except Exception as e:
+                        # API access failed, but basic connection works
+                        result["rabbitmq_info"] = {"error": "API access limited", "note": "Management UI available"}
+                
                 return result
     except Exception as e:
         pass
@@ -222,6 +247,114 @@ async def monitoring_health():
         for name, info in MONITORING_TOOLS.items()
     ]
     return await asyncio.gather(*monitoring_health_tasks)
+
+@app.get("/api/rabbitmq/stats")
+async def rabbitmq_stats():
+    """Get detailed RabbitMQ statistics"""
+    rabbitmq_info = MONITORING_TOOLS.get("rabbitmq")
+    if not rabbitmq_info:
+        return {"error": "RabbitMQ configuration not found", "status": "error"}
+    
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            headers = {"Authorization": "Basic Z3Vlc3Q6Z3Vlc3Q="}  # guest:guest in base64
+            
+            # First, test basic connectivity
+            try:
+                basic_response = await client.get(f"{rabbitmq_info['url']}", headers=headers, follow_redirects=False)
+                if basic_response.status_code == 404:
+                    return {"error": "RabbitMQ Management UI not accessible", "status": "error", "status_code": 404}
+            except Exception as e:
+                return {"error": f"Cannot connect to RabbitMQ: {str(e)}", "status": "error"}
+            
+            # Get overview
+            try:
+                overview_response = await client.get(f"{rabbitmq_info['url']}/api/overview", headers=headers)
+                
+                if overview_response.status_code == 401:
+                    return {"error": "Authentication failed - check RabbitMQ credentials", "status": "error", "status_code": 401}
+                elif overview_response.status_code == 404:
+                    return {"error": "RabbitMQ Management API not found", "status": "error", "status_code": 404}
+                elif overview_response.status_code != 200:
+                    return {"error": f"RabbitMQ API returned status {overview_response.status_code}", "status": "error", "status_code": overview_response.status_code}
+                
+                # Check if response is JSON
+                content_type = overview_response.headers.get('content-type', '')
+                if 'application/json' not in content_type:
+                    return {"error": f"RabbitMQ API returned non-JSON response (content-type: {content_type})", "status": "error"}
+                
+                overview_data = overview_response.json()
+                
+            except httpx.HTTPStatusError as e:
+                return {"error": f"HTTP error accessing RabbitMQ API: {e.response.status_code}", "status": "error", "status_code": e.response.status_code}
+            except Exception as e:
+                return {"error": f"Failed to parse RabbitMQ overview: {str(e)}", "status": "error"}
+            
+            # Initialize default values
+            queues_data = []
+            exchanges_data = []
+            connections_data = []
+            
+            # Get queues (optional)
+            try:
+                queues_response = await client.get(f"{rabbitmq_info['url']}/api/queues", headers=headers)
+                if queues_response.status_code == 200 and 'application/json' in queues_response.headers.get('content-type', ''):
+                    queues_data = queues_response.json()
+            except Exception as e:
+                print(f"Warning: Could not fetch queues data: {e}")
+            
+            # Get exchanges (optional)
+            try:
+                exchanges_response = await client.get(f"{rabbitmq_info['url']}/api/exchanges", headers=headers)
+                if exchanges_response.status_code == 200 and 'application/json' in exchanges_response.headers.get('content-type', ''):
+                    exchanges_data = exchanges_response.json()
+            except Exception as e:
+                print(f"Warning: Could not fetch exchanges data: {e}")
+            
+            # Get connections (optional)
+            try:
+                connections_response = await client.get(f"{rabbitmq_info['url']}/api/connections", headers=headers)
+                if connections_response.status_code == 200 and 'application/json' in connections_response.headers.get('content-type', ''):
+                    connections_data = connections_response.json()
+            except Exception as e:
+                print(f"Warning: Could not fetch connections data: {e}")
+            
+            return {
+                "status": "healthy",
+                "overview": {
+                    "rabbitmq_version": overview_data.get("rabbitmq_version", "Unknown"),
+                    "erlang_version": overview_data.get("erlang_version", "Unknown"),
+                    "node": overview_data.get("node", "Unknown"),
+                    "management_version": overview_data.get("management_version", "Unknown"),
+                    "uptime": overview_data.get("uptime", 0)
+                },
+                "statistics": {
+                    "total_queues": len(queues_data),
+                    "total_exchanges": len(exchanges_data),
+                    "total_connections": len(connections_data),
+                    "total_messages": sum(q.get("messages", 0) for q in queues_data),
+                    "ready_messages": sum(q.get("messages_ready", 0) for q in queues_data),
+                    "unacknowledged_messages": sum(q.get("messages_unacknowledged", 0) for q in queues_data)
+                },
+                "queues": [
+                    {
+                        "name": q.get("name", "Unknown"),
+                        "vhost": q.get("vhost", "/"),
+                        "messages": q.get("messages", 0),
+                        "messages_ready": q.get("messages_ready", 0),
+                        "messages_unacknowledged": q.get("messages_unacknowledged", 0),
+                        "consumers": q.get("consumers", 0)
+                    }
+                    for q in queues_data[:10]  # Limit to first 10 queues
+                ]
+            }
+            
+    except httpx.ConnectError:
+        return {"error": "Cannot connect to RabbitMQ - service may be down", "status": "error"}
+    except httpx.TimeoutException:
+        return {"error": "RabbitMQ connection timeout", "status": "error"}
+    except Exception as e:
+        return {"error": f"Unexpected error: {str(e)}", "status": "error"}
 
 if __name__ == "__main__":
     import uvicorn

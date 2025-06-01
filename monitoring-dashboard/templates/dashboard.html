@@ -284,19 +284,128 @@
 
                 <!-- RabbitMQ Tab -->
                 <div id="rabbitmq-tab" class="tab-content">
-                    <div class="bg-yellow-50 border border-yellow-300 rounded p-4 mb-4">
-                        <p class="text-yellow-800">
-                            <i class="fas fa-info-circle mr-2"></i>
-                            RabbitMQ Management UI requires authentication. Default credentials: guest/guest
-                        </p>
-                    </div>
                     {% for tool in monitoring_tools %}
-                        {% if tool.name == 'RabbitMQ' %}
-                        <div class="text-center">
-                            <a href="{{ tool.url }}" target="_blank" class="inline-block bg-blue-500 text-white px-6 py-3 rounded hover:bg-blue-600">
-                                <i class="fas fa-external-link-alt mr-2"></i>
-                                Open RabbitMQ Management UI
-                            </a>
+                        {% if tool.name == 'RabbitMQ' and tool.status == 'healthy' %}
+                        <div class="mb-4">
+                            <!-- Status and Info Section -->
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                                <div class="bg-green-50 border border-green-300 rounded p-4">
+                                    <div class="flex items-center mb-2">
+                                        <i class="fas fa-check-circle text-green-600 mr-2"></i>
+                                        <h3 class="font-semibold text-green-800">RabbitMQ Status</h3>
+                                    </div>
+                                    <p class="text-green-700 text-sm">Service is running and accessible</p>
+                                    <p class="text-green-600 text-xs mt-1">Port: {{ tool.port }}</p>
+                                    {% if tool.rabbitmq_info and tool.rabbitmq_info.version %}
+                                    <p class="text-green-600 text-xs">Version: {{ tool.rabbitmq_info.version }}</p>
+                                    {% endif %}
+                                </div>
+                                
+                                <div class="bg-blue-50 border border-blue-300 rounded p-4">
+                                    <div class="flex items-center mb-2">
+                                        <i class="fas fa-info-circle text-blue-600 mr-2"></i>
+                                        <h3 class="font-semibold text-blue-800">Authentication</h3>
+                                    </div>
+                                    <p class="text-blue-700 text-sm">Default credentials: <code class="bg-blue-100 px-1 rounded">guest/guest</code></p>
+                                    <p class="text-blue-600 text-xs mt-1">Management UI requires login</p>
+                                </div>
+
+                                {% if tool.rabbitmq_info and tool.rabbitmq_info.total_queues is defined %}
+                                <div class="bg-purple-50 border border-purple-300 rounded p-4">
+                                    <div class="flex items-center mb-2">
+                                        <i class="fas fa-list text-purple-600 mr-2"></i>
+                                        <h3 class="font-semibold text-purple-800">Queue Statistics</h3>
+                                    </div>
+                                    <p class="text-purple-700 text-sm">Queues: {{ tool.rabbitmq_info.total_queues }}</p>
+                                    <p class="text-purple-600 text-xs mt-1">Messages: {{ tool.rabbitmq_info.total_messages }}</p>
+                                </div>
+                                {% else %}
+                                <div class="bg-gray-50 border border-gray-300 rounded p-4">
+                                    <div class="flex items-center mb-2">
+                                        <i class="fas fa-cogs text-gray-600 mr-2"></i>
+                                        <h3 class="font-semibold text-gray-800">Management Features</h3>
+                                    </div>
+                                    <p class="text-gray-700 text-sm">Queue monitoring</p>
+                                    <p class="text-gray-600 text-xs mt-1">Exchange management</p>
+                                </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Embed Attempt -->
+                            <div class="mb-4">
+                                <div class="bg-yellow-50 border border-yellow-300 rounded p-3 mb-4">
+                                    <p class="text-yellow-800 text-sm">
+                                        <i class="fas fa-exclamation-triangle mr-2"></i>
+                                        RabbitMQ Management UI may not embed properly due to authentication requirements. Use the buttons below if embedding fails.
+                                    </p>
+                                </div>
+                                
+                                <div class="iframe-container mb-4" id="rabbitmq-iframe-container">
+                                    <iframe 
+                                        src="{{ tool.url }}" 
+                                        allowfullscreen
+                                        sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
+                                        onload="handleRabbitMQLoad()"
+                                        onerror="handleRabbitMQError()"
+                                        style="width: 100%; height: 100%; border: none;">
+                                    </iframe>
+                                </div>
+                            </div>
+
+                            <!-- Action Buttons -->
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <a href="{{ tool.url }}" target="_blank" class="bg-orange-500 text-white px-4 py-3 rounded hover:bg-orange-600 text-center">
+                                    <i class="fas fa-external-link-alt mr-2"></i>
+                                    Open Management UI
+                                </a>
+                                <button onclick="testRabbitMQConnection()" class="bg-blue-500 text-white px-4 py-3 rounded hover:bg-blue-600">
+                                    <i class="fas fa-network-wired mr-2"></i>
+                                    Test Connection
+                                </button>
+                                <button onclick="retryRabbitMQEmbed()" class="bg-green-500 text-white px-4 py-3 rounded hover:bg-green-600">
+                                    <i class="fas fa-redo mr-2"></i>
+                                    Retry Embed
+                                </button>
+                            </div>
+
+                            <!-- Connection Test Results -->
+                            <div id="rabbitmq-test-results" class="mt-4 hidden">
+                                <!-- Results will be populated by JavaScript -->
+                            </div>
+                        </div>
+                        {% elif tool.name == 'RabbitMQ' %}
+                        <div class="text-center py-12">
+                            <i class="fas fa-exclamation-triangle text-6xl text-red-500 mb-4"></i>
+                            <p class="text-xl text-gray-600 mb-4">RabbitMQ is currently unavailable</p>
+                            <div class="space-y-4">
+                                <div class="bg-red-50 border border-red-300 rounded p-4 max-w-md mx-auto">
+                                    <p class="text-red-700 text-sm mb-2">
+                                        <i class="fas fa-times-circle mr-2"></i>
+                                        Service Status: Unhealthy
+                                    </p>
+                                    <p class="text-red-600 text-xs">
+                                        Expected Port: {{ tool.port }}
+                                    </p>
+                                </div>
+                                
+                                <div class="space-y-2">
+                                    <p class="text-gray-500">Troubleshooting options:</p>
+                                    <div class="flex justify-center space-x-4">
+                                        <a href="http://localhost:15672" target="_blank" class="text-blue-600 hover:text-blue-800">
+                                            <i class="fas fa-external-link-alt mr-1"></i>
+                                            Try Direct Access
+                                        </a>
+                                        <button onclick="location.reload()" class="text-green-600 hover:text-green-800">
+                                            <i class="fas fa-sync-alt mr-1"></i>
+                                            Retry Connection
+                                        </button>
+                                        <button onclick="checkRabbitMQLogs()" class="text-orange-600 hover:text-orange-800">
+                                            <i class="fas fa-file-alt mr-1"></i>
+                                            Check Logs
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                         {% endif %}
                     {% endfor %}
@@ -455,6 +564,251 @@
         setTimeout(() => {
             location.reload();
         }, 30000);
+
+        // RabbitMQ iframe handling
+        function handleRabbitMQLoad() {
+            console.log('RabbitMQ iframe loaded successfully');
+            // Check if it's actually the login page or management interface
+            setTimeout(() => {
+                try {
+                    const iframe = document.querySelector('#rabbitmq-iframe-container iframe');
+                    if (iframe) {
+                        // Try to detect if we're on the login page
+                        const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                        if (iframeDoc && iframeDoc.title && iframeDoc.title.includes('RabbitMQ')) {
+                            showRabbitMQLoginInfo();
+                        }
+                    }
+                } catch (e) {
+                    // CORS will prevent access, but that's expected
+                    console.log('RabbitMQ iframe loaded (CORS protected)');
+                }
+            }, 2000);
+        }
+
+        function handleRabbitMQError() {
+            console.log('RabbitMQ iframe failed to load');
+            showRabbitMQError();
+        }
+
+        function showRabbitMQLoginInfo() {
+            const container = document.getElementById('rabbitmq-iframe-container');
+            if (container) {
+                // Add a floating login reminder
+                const loginReminder = document.createElement('div');
+                loginReminder.className = 'absolute top-2 right-2 bg-blue-500 text-white px-3 py-2 rounded shadow-lg z-10';
+                loginReminder.innerHTML = '<i class="fas fa-key mr-2"></i>Login: guest/guest';
+                loginReminder.style.position = 'absolute';
+                loginReminder.style.zIndex = '1000';
+                container.style.position = 'relative';
+                container.appendChild(loginReminder);
+                
+                // Remove the reminder after 10 seconds
+                setTimeout(() => {
+                    if (loginReminder.parentNode) {
+                        loginReminder.parentNode.removeChild(loginReminder);
+                    }
+                }, 10000);
+            }
+        }
+
+        function showRabbitMQError() {
+            const container = document.getElementById('rabbitmq-iframe-container');
+            if (container) {
+                container.innerHTML = '<div class="text-center py-12 bg-red-50 border border-red-300 rounded"><i class="fas fa-exclamation-triangle text-4xl text-red-500 mb-4"></i><p class="text-lg text-gray-700 mb-2">Unable to embed RabbitMQ Management UI</p><p class="text-sm text-gray-600 mb-4">This is likely due to authentication requirements or iframe restrictions.</p><div class="space-y-2"><button onclick="retryRabbitMQEmbed()" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 mr-2"><i class="fas fa-redo mr-1"></i> Retry Embed</button><button onclick="openRabbitMQDirectly()" class="bg-orange-500 text-white px-4 py-2 rounded hover:bg-orange-600"><i class="fas fa-external-link-alt mr-1"></i> Open Directly</button></div></div>';
+            }
+        }
+
+        function retryRabbitMQEmbed() {
+            const container = document.getElementById('rabbitmq-iframe-container');
+            if (container) {
+                container.innerHTML = '<iframe src="http://localhost:15672" allowfullscreen sandbox="allow-same-origin allow-scripts allow-forms allow-popups" onload="handleRabbitMQLoad()" onerror="handleRabbitMQError()" style="width: 100%; height: 100%; border: none;"></iframe>';
+            }
+        }
+
+        function openRabbitMQDirectly() {
+            window.open('http://localhost:15672', '_blank');
+        }
+
+        function testRabbitMQConnection() {
+            const resultsDiv = document.getElementById('rabbitmq-test-results');
+            if (resultsDiv) {
+                resultsDiv.classList.remove('hidden');
+                resultsDiv.innerHTML = '<div class="bg-blue-50 border border-blue-300 rounded p-4"><div class="flex items-center"><i class="fas fa-spinner fa-spin text-blue-600 mr-2"></i><p class="text-blue-800">Testing RabbitMQ connection and fetching statistics...</p></div></div>';
+                
+                // Test detailed RabbitMQ statistics
+                fetch('/api/rabbitmq/stats')
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                        }
+                        
+                        const contentType = response.headers.get('content-type');
+                        if (!contentType || !contentType.includes('application/json')) {
+                            throw new Error(`Expected JSON response, got ${contentType || 'unknown content type'}`);
+                        }
+                        
+                        return response.json();
+                    })
+                    .then(data => {
+                        if (data.status === 'healthy') {
+                            resultsDiv.innerHTML = `
+                                <div class="bg-green-50 border border-green-300 rounded p-4">
+                                    <div class="flex items-center mb-3">
+                                        <i class="fas fa-check-circle text-green-600 mr-2"></i>
+                                        <h4 class="font-semibold text-green-800">RabbitMQ Connection Test Successful</h4>
+                                    </div>
+                                    
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                        <div class="bg-white rounded p-3 border border-green-200">
+                                            <h5 class="font-medium text-green-800 mb-2">System Information</h5>
+                                            <div class="text-green-700 text-sm space-y-1">
+                                                <p><i class="fas fa-server mr-2"></i>Version: ${data.overview.rabbitmq_version || 'Unknown'}</p>
+                                                <p><i class="fas fa-code mr-2"></i>Erlang: ${data.overview.erlang_version || 'Unknown'}</p>
+                                                <p><i class="fas fa-network-wired mr-2"></i>Node: ${data.overview.node || 'Unknown'}</p>
+                                                <p><i class="fas fa-clock mr-2"></i>Uptime: ${Math.floor((data.overview.uptime || 0) / 1000)} seconds</p>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="bg-white rounded p-3 border border-green-200">
+                                            <h5 class="font-medium text-green-800 mb-2">Statistics</h5>
+                                            <div class="text-green-700 text-sm space-y-1">
+                                                <p><i class="fas fa-list mr-2"></i>Queues: ${data.statistics.total_queues}</p>
+                                                <p><i class="fas fa-exchange-alt mr-2"></i>Exchanges: ${data.statistics.total_exchanges}</p>
+                                                <p><i class="fas fa-plug mr-2"></i>Connections: ${data.statistics.total_connections}</p>
+                                                <p><i class="fas fa-envelope mr-2"></i>Total Messages: ${data.statistics.total_messages}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    ${data.queues && data.queues.length > 0 ? `
+                                        <div class="bg-white rounded p-3 border border-green-200">
+                                            <h5 class="font-medium text-green-800 mb-2">Recent Queues</h5>
+                                            <div class="overflow-x-auto">
+                                                <table class="min-w-full text-sm">
+                                                    <thead>
+                                                        <tr class="border-b border-green-200">
+                                                            <th class="text-left py-1 px-2 text-green-800">Queue</th>
+                                                            <th class="text-left py-1 px-2 text-green-800">Messages</th>
+                                                            <th class="text-left py-1 px-2 text-green-800">Ready</th>
+                                                            <th class="text-left py-1 px-2 text-green-800">Consumers</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        ${data.queues.map(queue => `
+                                                            <tr class="border-b border-green-100">
+                                                                <td class="py-1 px-2 text-green-700">${queue.name}</td>
+                                                                <td class="py-1 px-2 text-green-700">${queue.messages}</td>
+                                                                <td class="py-1 px-2 text-green-700">${queue.messages_ready}</td>
+                                                                <td class="py-1 px-2 text-green-700">${queue.consumers}</td>
+                                                            </tr>
+                                                        `).join('')}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            `;
+                        } else {
+                            // Handle API error responses
+                            resultsDiv.innerHTML = `
+                                <div class="bg-red-50 border border-red-300 rounded p-4">
+                                    <div class="flex items-center mb-2">
+                                        <i class="fas fa-times-circle text-red-600 mr-2"></i>
+                                        <h4 class="font-semibold text-red-800">RabbitMQ Connection Test Failed</h4>
+                                    </div>
+                                    <div class="text-red-700 text-sm space-y-1">
+                                        <p><i class="fas fa-exclamation-triangle mr-2"></i>${data.error || 'Unknown error occurred'}</p>
+                                        ${data.status_code ? `<p class="text-red-600 text-xs">Status Code: ${data.status_code}</p>` : ''}
+                                        <div class="mt-3 p-2 bg-red-100 rounded text-xs">
+                                            <p class="font-medium">Troubleshooting tips:</p>
+                                            <ul class="mt-1 space-y-1">
+                                                <li>• Check if RabbitMQ service is running: <code>docker-compose ps rabbitmq</code></li>
+                                                <li>• Verify RabbitMQ logs: <code>docker-compose logs rabbitmq</code></li>
+                                                <li>• Ensure management plugin is enabled</li>
+                                                <li>• Try accessing directly: <a href="http://localhost:15672" target="_blank" class="text-blue-600 underline">http://localhost:15672</a></li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                        }
+                    })
+                    .catch(error => {
+                        console.error('RabbitMQ test error:', error);
+                        
+                        let errorMessage = error.message;
+                        let troubleshootingTips = [];
+                        
+                        if (errorMessage.includes('Unexpected token')) {
+                            errorMessage = 'Received HTML instead of JSON - likely an authentication redirect or error page';
+                            troubleshootingTips = [
+                                'RabbitMQ Management UI may not be properly configured',
+                                'Check if guest user is enabled and has management permissions',
+                                'Verify RabbitMQ management plugin is installed and enabled',
+                                'Try accessing the management UI directly to verify it works'
+                            ];
+                        } else if (errorMessage.includes('Failed to fetch') || errorMessage.includes('NetworkError')) {
+                            errorMessage = 'Network connection failed - RabbitMQ may be down';
+                            troubleshootingTips = [
+                                'Check if RabbitMQ container is running',
+                                'Verify port 15672 is accessible',
+                                'Check Docker network connectivity',
+                                'Review RabbitMQ container logs'
+                            ];
+                        } else if (errorMessage.includes('HTTP 401')) {
+                            errorMessage = 'Authentication failed - invalid credentials';
+                            troubleshootingTips = [
+                                'Default credentials should be guest/guest',
+                                'Check if guest user is enabled in RabbitMQ',
+                                'Verify management plugin permissions',
+                                'Check RabbitMQ user configuration'
+                            ];
+                        } else if (errorMessage.includes('HTTP 404')) {
+                            errorMessage = 'RabbitMQ Management API not found';
+                            troubleshootingTips = [
+                                'Management plugin may not be enabled',
+                                'Check RabbitMQ configuration',
+                                'Verify correct port (15672) is being used',
+                                'Ensure RabbitMQ is running with management plugin'
+                            ];
+                        }
+                        
+                        resultsDiv.innerHTML = `
+                            <div class="bg-yellow-50 border border-yellow-300 rounded p-4">
+                                <div class="flex items-center mb-2">
+                                    <i class="fas fa-exclamation-triangle text-yellow-600 mr-2"></i>
+                                    <h4 class="font-semibold text-yellow-800">Connection Test Failed</h4>
+                                </div>
+                                <div class="text-yellow-700 text-sm space-y-2">
+                                    <p><strong>Error:</strong> ${errorMessage}</p>
+                                    ${troubleshootingTips.length > 0 ? `
+                                        <div class="mt-3 p-2 bg-yellow-100 rounded text-xs">
+                                            <p class="font-medium">Troubleshooting suggestions:</p>
+                                            <ul class="mt-1 space-y-1">
+                                                ${troubleshootingTips.map(tip => `<li>• ${tip}</li>`).join('')}
+                                            </ul>
+                                        </div>
+                                    ` : ''}
+                                    <div class="mt-3 flex space-x-2">
+                                        <button onclick="testRabbitMQConnection()" class="bg-yellow-600 text-white px-3 py-1 rounded text-xs hover:bg-yellow-700">
+                                            <i class="fas fa-redo mr-1"></i> Retry Test
+                                        </button>
+                                        <a href="http://localhost:15672" target="_blank" class="bg-blue-600 text-white px-3 py-1 rounded text-xs hover:bg-blue-700">
+                                            <i class="fas fa-external-link-alt mr-1"></i> Open RabbitMQ
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    });
+            }
+        }
+
+        function checkRabbitMQLogs() {
+            alert('To check RabbitMQ logs, run: docker-compose logs rabbitmq');
+        }
     </script>
 </body>
 </html>
