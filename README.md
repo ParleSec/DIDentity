@@ -34,15 +34,16 @@ Modern digital identity requires secure, user-controlled, and interoperable solu
    sudo docker-compose up -d
    ```
 3. The services will be available at:
-   - Auth Service: http://localhost:8004
-   - DID Service: http://localhost:8001
-   - Credential Service: http://localhost:8002
-   - Verification Service: http://localhost:8003
-   - RabbitMQ Management: http://localhost:15672 (guest/guest)
-   - Vault UI: http://localhost:8200 (token: root)
-   - Grafana: http://localhost:3000 (admin/admin)
-   - Prometheus: http://localhost:9090
-   - Jaeger UI: http://localhost:16686
+   - **Monitoring Dashboard**: http://localhost:8080 (Unified monitoring interface)
+   - **Auth Service**: http://localhost:8004
+   - **DID Service**: http://localhost:8001
+   - **Credential Service**: http://localhost:8002
+   - **Verification Service**: http://localhost:8003
+   - **RabbitMQ Management**: http://localhost:15672 (guest/guest)
+   - **Vault UI**: http://localhost:8200 (token: root)
+   - **Grafana**: http://localhost:3000 (admin/admin)
+   - **Prometheus**: http://localhost:9090
+   - **Jaeger UI**: http://localhost:16686
 
 ## Architecture
 DIDentity consists of several microservices:
@@ -177,10 +178,11 @@ After starting the services, they will be available at:
 
 ### Basic Usage Flow
 
-1. Create a user account
-2. Generate a new DID
-3. Issue a Verifiable Credential
-4. Verify the credential
+1. Access the Monitoring Dashboard at http://localhost:8000 to monitor system health
+2. Create a user account
+3. Generate a new DID
+4. Issue a Verifiable Credential
+5. Verify the credential
 
 ## Project Structure
 
@@ -251,15 +253,25 @@ pytest tests/unit/
 
 ## Troubleshooting
 
+**💡 Pro Tip**: Use the **Monitoring Dashboard** at http://localhost:8000 for comprehensive system monitoring and troubleshooting. The dashboard provides real-time health checks, connection testing, and detailed error diagnostics for all services.
+
 Common issues:
 
-1. **Service Connection Issues**: Ensure all containers are running with `docker-compose ps`
+1. **Service Connection Issues**: 
+   - Check the Monitoring Dashboard for real-time service status
+   - Ensure all containers are running with `docker-compose ps`
+   - Use the dashboard's "Test Connection" buttons for detailed diagnostics
 
 2. **Database Errors**: Check PostgreSQL logs with `docker-compose logs postgres`
 
 3. **Authentication Failures**: Verify Vault is properly initialized and unsealed
 
 4. **Missing Events**: Check RabbitMQ management console for queue status
+
+5. **Monitoring Tool Issues**: 
+   - Use the Monitoring Dashboard's embedded interfaces
+   - Check individual tool health via the dashboard's connection tests
+   - Review troubleshooting suggestions provided by the dashboard
 
 ## Disclaimer
 
