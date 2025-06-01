@@ -194,49 +194,110 @@
                 <div id="grafana-tab" class="tab-content active">
                     {% for tool in monitoring_tools %}
                         {% if tool.name == 'Grafana' and tool.status == 'healthy' %}
-                            
-                            <!-- Primary embed attempt -->
-                            <div class="iframe-container mb-4" id="grafana-iframe-container">
-                                <iframe 
-                                    src="{{ tool.embed_url }}" 
-                                    allowfullscreen
-                                    sandbox="allow-same-origin allow-scripts allow-forms"
-                                    onload="handleGrafanaLoad()"
-                                    onerror="handleGrafanaError()">
-                                </iframe>
+                        <div class="mb-4">
+                            <!-- Status and Info Section -->
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                                <div class="bg-green-50 border border-green-300 rounded p-4">
+                                    <div class="flex items-center mb-2">
+                                        <i class="fas fa-check-circle text-green-600 mr-2"></i>
+                                        <h3 class="font-semibold text-green-800">Grafana Status</h3>
+                                    </div>
+                                    <p class="text-green-700 text-sm">Service is running and accessible</p>
+                                    <p class="text-green-600 text-xs mt-1">Port: {{ tool.port }}</p>
+                                </div>
+                                
+                                <div class="bg-blue-50 border border-blue-300 rounded p-4">
+                                    <div class="flex items-center mb-2">
+                                        <i class="fas fa-chart-bar text-blue-600 mr-2"></i>
+                                        <h3 class="font-semibold text-blue-800">Dashboard Features</h3>
+                                    </div>
+                                    <p class="text-blue-700 text-sm">Real-time metrics visualization</p>
+                                    <p class="text-blue-600 text-xs mt-1">Interactive dashboards</p>
+                                </div>
+
+                                <div class="bg-purple-50 border border-purple-300 rounded p-4">
+                                    <div class="flex items-center mb-2">
+                                        <i class="fas fa-cogs text-purple-600 mr-2"></i>
+                                        <h3 class="font-semibold text-purple-800">Access Options</h3>
+                                    </div>
+                                    <p class="text-purple-700 text-sm">Embedded view available</p>
+                                    <p class="text-purple-600 text-xs mt-1">Multiple display modes</p>
+                                </div>
                             </div>
-                            
-                            <!-- Fallback options -->
+
+                            <!-- Embed Section -->
+                            <div class="mb-4">
+                                <div class="bg-blue-50 border border-blue-300 rounded p-3 mb-4">
+                                    <p class="text-blue-800 text-sm">
+                                        <i class="fas fa-info-circle mr-2"></i>
+                                        Grafana dashboard with automatic fallback handling. If embedding fails, use the action buttons below.
+                                    </p>
+                                </div>
+                                
+                                <div class="iframe-container mb-4" id="grafana-iframe-container">
+                                    <iframe 
+                                        src="{{ tool.embed_url }}" 
+                                        allowfullscreen
+                                        sandbox="allow-same-origin allow-scripts allow-forms"
+                                        onload="handleGrafanaLoad()"
+                                        onerror="handleGrafanaError()"
+                                        style="width: 100%; height: 100%; border: none;">
+                                    </iframe>
+                                </div>
+                            </div>
+
+                            <!-- Action Buttons -->
                             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <a href="{{ tool.url }}" target="_blank" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 text-center">
+                                <a href="{{ tool.url }}" target="_blank" class="bg-blue-500 text-white px-4 py-3 rounded hover:bg-blue-600 text-center">
                                     <i class="fas fa-external-link-alt mr-2"></i>
-                                    Open Full Grafana
+                                    Open Full Interface
                                 </a>
-                                <a href="{{ tool.url }}/d/didservices/dididentity-services?orgId=1&kiosk" target="_blank" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 text-center">
-                                    <i class="fas fa-tv mr-2"></i>
-                                    Kiosk Mode
-                                </a>
-                                <a href="{{ tool.url }}/d/didservices/dididentity-services?orgId=1" target="_blank" class="bg-purple-500 text-white px-4 py-2 rounded hover:bg-purple-600 text-center">
-                                    <i class="fas fa-chart-line mr-2"></i>
-                                    Dashboard View
-                                </a>
+                                <button onclick="testGrafanaConnection()" class="bg-green-500 text-white px-4 py-3 rounded hover:bg-green-600">
+                                    <i class="fas fa-network-wired mr-2"></i>
+                                    Test Connection
+                                </button>
+                                <button onclick="retryGrafanaEmbed()" class="bg-purple-500 text-white px-4 py-3 rounded hover:bg-purple-600">
+                                    <i class="fas fa-redo mr-2"></i>
+                                    Retry Embed
+                                </button>
+                            </div>
+
+                            <!-- Test Results -->
+                            <div id="grafana-test-results" class="mt-4 hidden">
+                                <!-- Results will be populated by JavaScript -->
                             </div>
                         </div>
                         {% elif tool.name == 'Grafana' %}
                         <div class="text-center py-12">
-                            <i class="fas fa-exclamation-triangle text-6xl text-yellow-500 mb-4"></i>
+                            <i class="fas fa-exclamation-triangle text-6xl text-red-500 mb-4"></i>
                             <p class="text-xl text-gray-600 mb-4">Grafana is currently unavailable</p>
-                            <div class="space-y-2">
-                                <p class="text-gray-500">Try these options:</p>
-                                <div class="flex justify-center space-x-4">
-                                    <a href="http://localhost:3000" target="_blank" class="text-blue-600 hover:text-blue-800">
-                                        <i class="fas fa-external-link-alt mr-1"></i>
-                                        Open Grafana directly
-                                    </a>
-                                    <button onclick="location.reload()" class="text-green-600 hover:text-green-800">
-                                        <i class="fas fa-sync-alt mr-1"></i>
-                                        Retry connection
-                                    </button>
+                            <div class="space-y-4">
+                                <div class="bg-red-50 border border-red-300 rounded p-4 max-w-md mx-auto">
+                                    <p class="text-red-700 text-sm mb-2">
+                                        <i class="fas fa-times-circle mr-2"></i>
+                                        Service Status: Unhealthy
+                                    </p>
+                                    <p class="text-red-600 text-xs">
+                                        Expected Port: {{ tool.port }}
+                                    </p>
+                                </div>
+                                
+                                <div class="space-y-2">
+                                    <p class="text-gray-500">Troubleshooting options:</p>
+                                    <div class="flex justify-center space-x-4">
+                                        <a href="http://localhost:3000" target="_blank" class="text-blue-600 hover:text-blue-800">
+                                            <i class="fas fa-external-link-alt mr-1"></i>
+                                            Try Direct Access
+                                        </a>
+                                        <button onclick="location.reload()" class="text-green-600 hover:text-green-800">
+                                            <i class="fas fa-sync-alt mr-1"></i>
+                                            Retry Connection
+                                        </button>
+                                        <button onclick="checkGrafanaLogs()" class="text-orange-600 hover:text-orange-800">
+                                            <i class="fas fa-file-alt mr-1"></i>
+                                            Check Logs
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -248,16 +309,112 @@
                 <div id="prometheus-tab" class="tab-content">
                     {% for tool in monitoring_tools %}
                         {% if tool.name == 'Prometheus' and tool.status == 'healthy' %}
-                        <div class="iframe-container">
-                            <iframe src="{{ tool.embed_url }}" allowfullscreen></iframe>
+                        <div class="mb-4">
+                            <!-- Status and Info Section -->
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                                <div class="bg-green-50 border border-green-300 rounded p-4">
+                                    <div class="flex items-center mb-2">
+                                        <i class="fas fa-check-circle text-green-600 mr-2"></i>
+                                        <h3 class="font-semibold text-green-800">Prometheus Status</h3>
+                                    </div>
+                                    <p class="text-green-700 text-sm">Service is running and accessible</p>
+                                    <p class="text-green-600 text-xs mt-1">Port: {{ tool.port }}</p>
+                                </div>
+                                
+                                <div class="bg-blue-50 border border-blue-300 rounded p-4">
+                                    <div class="flex items-center mb-2">
+                                        <i class="fas fa-database text-blue-600 mr-2"></i>
+                                        <h3 class="font-semibold text-blue-800">Metrics Collection</h3>
+                                    </div>
+                                    <p class="text-blue-700 text-sm">Time-series database</p>
+                                    <p class="text-blue-600 text-xs mt-1">Query interface available</p>
+                                </div>
+
+                                <div class="bg-purple-50 border border-purple-300 rounded p-4">
+                                    <div class="flex items-center mb-2">
+                                        <i class="fas fa-search text-purple-600 mr-2"></i>
+                                        <h3 class="font-semibold text-purple-800">Query Features</h3>
+                                    </div>
+                                    <p class="text-purple-700 text-sm">PromQL query language</p>
+                                    <p class="text-purple-600 text-xs mt-1">Real-time data exploration</p>
+                                </div>
+                            </div>
+
+                            <!-- Embed Section -->
+                            <div class="mb-4">
+                                <div class="bg-blue-50 border border-blue-300 rounded p-3 mb-4">
+                                    <p class="text-blue-800 text-sm">
+                                        <i class="fas fa-info-circle mr-2"></i>
+                                        Prometheus query interface for exploring metrics and creating custom queries.
+                                    </p>
+                                </div>
+                                
+                                <div class="iframe-container mb-4" id="prometheus-iframe-container">
+                                    <iframe 
+                                        src="{{ tool.embed_url }}" 
+                                        allowfullscreen
+                                        sandbox="allow-same-origin allow-scripts allow-forms"
+                                        onload="handlePrometheusLoad()"
+                                        onerror="handlePrometheusError()"
+                                        style="width: 100%; height: 100%; border: none;">
+                                    </iframe>
+                                </div>
+                            </div>
+
+                            <!-- Action Buttons -->
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <a href="{{ tool.url }}" target="_blank" class="bg-orange-500 text-white px-4 py-3 rounded hover:bg-orange-600 text-center">
+                                    <i class="fas fa-external-link-alt mr-2"></i>
+                                    Open Full Interface
+                                </a>
+                                <button onclick="testPrometheusConnection()" class="bg-blue-500 text-white px-4 py-3 rounded hover:bg-blue-600">
+                                    <i class="fas fa-network-wired mr-2"></i>
+                                    Test Connection
+                                </button>
+                                <button onclick="retryPrometheusEmbed()" class="bg-green-500 text-white px-4 py-3 rounded hover:bg-green-600">
+                                    <i class="fas fa-redo mr-2"></i>
+                                    Retry Embed
+                                </button>
+                            </div>
+
+                            <!-- Test Results -->
+                            <div id="prometheus-test-results" class="mt-4 hidden">
+                                <!-- Results will be populated by JavaScript -->
+                            </div>
                         </div>
                         {% elif tool.name == 'Prometheus' %}
                         <div class="text-center py-12">
-                            <i class="fas fa-exclamation-triangle text-6xl text-yellow-500 mb-4"></i>
-                            <p class="text-xl text-gray-600">Prometheus is currently unavailable</p>
-                            <a href="{{ tool.url }}" target="_blank" class="text-blue-600 hover:text-blue-800 mt-2 inline-block">
-                                Try opening directly →
-                            </a>
+                            <i class="fas fa-exclamation-triangle text-6xl text-red-500 mb-4"></i>
+                            <p class="text-xl text-gray-600 mb-4">Prometheus is currently unavailable</p>
+                            <div class="space-y-4">
+                                <div class="bg-red-50 border border-red-300 rounded p-4 max-w-md mx-auto">
+                                    <p class="text-red-700 text-sm mb-2">
+                                        <i class="fas fa-times-circle mr-2"></i>
+                                        Service Status: Unhealthy
+                                    </p>
+                                    <p class="text-red-600 text-xs">
+                                        Expected Port: {{ tool.port }}
+                                    </p>
+                                </div>
+                                
+                                <div class="space-y-2">
+                                    <p class="text-gray-500">Troubleshooting options:</p>
+                                    <div class="flex justify-center space-x-4">
+                                        <a href="http://localhost:9090" target="_blank" class="text-blue-600 hover:text-blue-800">
+                                            <i class="fas fa-external-link-alt mr-1"></i>
+                                            Try Direct Access
+                                        </a>
+                                        <button onclick="location.reload()" class="text-green-600 hover:text-green-800">
+                                            <i class="fas fa-sync-alt mr-1"></i>
+                                            Retry Connection
+                                        </button>
+                                        <button onclick="checkPrometheusLogs()" class="text-orange-600 hover:text-orange-800">
+                                            <i class="fas fa-file-alt mr-1"></i>
+                                            Check Logs
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                         {% endif %}
                     {% endfor %}
@@ -267,16 +424,112 @@
                 <div id="jaeger-tab" class="tab-content">
                     {% for tool in monitoring_tools %}
                         {% if tool.name == 'Jaeger' and tool.status == 'healthy' %}
-                        <div class="iframe-container">
-                            <iframe src="{{ tool.embed_url }}" allowfullscreen></iframe>
+                        <div class="mb-4">
+                            <!-- Status and Info Section -->
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                                <div class="bg-green-50 border border-green-300 rounded p-4">
+                                    <div class="flex items-center mb-2">
+                                        <i class="fas fa-check-circle text-green-600 mr-2"></i>
+                                        <h3 class="font-semibold text-green-800">Jaeger Status</h3>
+                                    </div>
+                                    <p class="text-green-700 text-sm">Service is running and accessible</p>
+                                    <p class="text-green-600 text-xs mt-1">Port: {{ tool.port }}</p>
+                                </div>
+                                
+                                <div class="bg-blue-50 border border-blue-300 rounded p-4">
+                                    <div class="flex items-center mb-2">
+                                        <i class="fas fa-project-diagram text-blue-600 mr-2"></i>
+                                        <h3 class="font-semibold text-blue-800">Tracing Features</h3>
+                                    </div>
+                                    <p class="text-blue-700 text-sm">Distributed tracing system</p>
+                                    <p class="text-blue-600 text-xs mt-1">Request flow visualization</p>
+                                </div>
+
+                                <div class="bg-purple-50 border border-purple-300 rounded p-4">
+                                    <div class="flex items-center mb-2">
+                                        <i class="fas fa-route text-purple-600 mr-2"></i>
+                                        <h3 class="font-semibold text-purple-800">Trace Analysis</h3>
+                                    </div>
+                                    <p class="text-purple-700 text-sm">Service dependency mapping</p>
+                                    <p class="text-purple-600 text-xs mt-1">Performance bottleneck detection</p>
+                                </div>
+                            </div>
+
+                            <!-- Embed Section -->
+                            <div class="mb-4">
+                                <div class="bg-blue-50 border border-blue-300 rounded p-3 mb-4">
+                                    <p class="text-blue-800 text-sm">
+                                        <i class="fas fa-info-circle mr-2"></i>
+                                        Jaeger UI for searching and analyzing distributed traces across your services.
+                                    </p>
+                                </div>
+                                
+                                <div class="iframe-container mb-4" id="jaeger-iframe-container">
+                                    <iframe 
+                                        src="{{ tool.embed_url }}" 
+                                        allowfullscreen
+                                        sandbox="allow-same-origin allow-scripts allow-forms"
+                                        onload="handleJaegerLoad()"
+                                        onerror="handleJaegerError()"
+                                        style="width: 100%; height: 100%; border: none;">
+                                    </iframe>
+                                </div>
+                            </div>
+
+                            <!-- Action Buttons -->
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <a href="{{ tool.url }}" target="_blank" class="bg-indigo-500 text-white px-4 py-3 rounded hover:bg-indigo-600 text-center">
+                                    <i class="fas fa-external-link-alt mr-2"></i>
+                                    Open Full Interface
+                                </a>
+                                <button onclick="testJaegerConnection()" class="bg-blue-500 text-white px-4 py-3 rounded hover:bg-blue-600">
+                                    <i class="fas fa-network-wired mr-2"></i>
+                                    Test Connection
+                                </button>
+                                <button onclick="retryJaegerEmbed()" class="bg-green-500 text-white px-4 py-3 rounded hover:bg-green-600">
+                                    <i class="fas fa-redo mr-2"></i>
+                                    Retry Embed
+                                </button>
+                            </div>
+
+                            <!-- Test Results -->
+                            <div id="jaeger-test-results" class="mt-4 hidden">
+                                <!-- Results will be populated by JavaScript -->
+                            </div>
                         </div>
                         {% elif tool.name == 'Jaeger' %}
                         <div class="text-center py-12">
-                            <i class="fas fa-exclamation-triangle text-6xl text-yellow-500 mb-4"></i>
-                            <p class="text-xl text-gray-600">Jaeger is currently unavailable</p>
-                            <a href="{{ tool.url }}" target="_blank" class="text-blue-600 hover:text-blue-800 mt-2 inline-block">
-                                Try opening directly →
-                            </a>
+                            <i class="fas fa-exclamation-triangle text-6xl text-red-500 mb-4"></i>
+                            <p class="text-xl text-gray-600 mb-4">Jaeger is currently unavailable</p>
+                            <div class="space-y-4">
+                                <div class="bg-red-50 border border-red-300 rounded p-4 max-w-md mx-auto">
+                                    <p class="text-red-700 text-sm mb-2">
+                                        <i class="fas fa-times-circle mr-2"></i>
+                                        Service Status: Unhealthy
+                                    </p>
+                                    <p class="text-red-600 text-xs">
+                                        Expected Port: {{ tool.port }}
+                                    </p>
+                                </div>
+                                
+                                <div class="space-y-2">
+                                    <p class="text-gray-500">Troubleshooting options:</p>
+                                    <div class="flex justify-center space-x-4">
+                                        <a href="http://localhost:16686" target="_blank" class="text-blue-600 hover:text-blue-800">
+                                            <i class="fas fa-external-link-alt mr-1"></i>
+                                            Try Direct Access
+                                        </a>
+                                        <button onclick="location.reload()" class="text-green-600 hover:text-green-800">
+                                            <i class="fas fa-sync-alt mr-1"></i>
+                                            Retry Connection
+                                        </button>
+                                        <button onclick="checkJaegerLogs()" class="text-orange-600 hover:text-orange-800">
+                                            <i class="fas fa-file-alt mr-1"></i>
+                                            Check Logs
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                         {% endif %}
                     {% endfor %}
@@ -565,7 +818,273 @@
             location.reload();
         }, 30000);
 
-        // RabbitMQ iframe handling
+        // ===== GRAFANA FUNCTIONS =====
+        function testGrafanaConnection() {
+            const resultsDiv = document.getElementById('grafana-test-results');
+            if (resultsDiv) {
+                resultsDiv.classList.remove('hidden');
+                resultsDiv.innerHTML = '<div class="bg-blue-50 border border-blue-300 rounded p-4"><div class="flex items-center"><i class="fas fa-spinner fa-spin text-blue-600 mr-2"></i><p class="text-blue-800">Testing Grafana connection...</p></div></div>';
+                
+                // Use our backend to test Grafana instead of direct browser request
+                fetch('/api/monitoring/health')
+                    .then(response => response.json())
+                    .then(data => {
+                        const grafanaStatus = data.find(tool => tool.name === 'Grafana');
+                        if (grafanaStatus && grafanaStatus.status === 'healthy') {
+                            resultsDiv.innerHTML = `
+                                <div class="bg-green-50 border border-green-300 rounded p-4">
+                                    <div class="flex items-center mb-2">
+                                        <i class="fas fa-check-circle text-green-600 mr-2"></i>
+                                        <h4 class="font-semibold text-green-800">Grafana Connection Test Successful</h4>
+                                    </div>
+                                    <p class="text-green-700 text-sm">Grafana is accessible and responding to requests.</p>
+                                    <p class="text-green-600 text-xs mt-1">Port: ${grafanaStatus.port}</p>
+                                    <div class="mt-3 flex space-x-2">
+                                        <a href="${grafanaStatus.url}" target="_blank" class="bg-green-600 text-white px-3 py-1 rounded text-xs hover:bg-green-700">
+                                            <i class="fas fa-external-link-alt mr-1"></i> Open Grafana
+                                        </a>
+                                        <a href="${grafanaStatus.url}/d/didservices/dididentity-services?orgId=1" target="_blank" class="bg-blue-600 text-white px-3 py-1 rounded text-xs hover:bg-blue-700">
+                                            <i class="fas fa-chart-line mr-1"></i> View Dashboard
+                                        </a>
+                                    </div>
+                                </div>
+                            `;
+                        } else {
+                            throw new Error(grafanaStatus?.error || 'Service unavailable');
+                        }
+                    })
+                    .catch(error => {
+                        resultsDiv.innerHTML = `
+                            <div class="bg-yellow-50 border border-yellow-300 rounded p-4">
+                                <div class="flex items-center mb-2">
+                                    <i class="fas fa-exclamation-triangle text-yellow-600 mr-2"></i>
+                                    <h4 class="font-semibold text-yellow-800">Grafana Connection Test Failed</h4>
+                                </div>
+                                <p class="text-yellow-700 text-sm">Error: ${error.message}</p>
+                                <div class="mt-3 p-2 bg-yellow-100 rounded text-xs">
+                                    <p class="font-medium">Troubleshooting suggestions:</p>
+                                    <ul class="mt-1 space-y-1">
+                                        <li>• Check if Grafana container is running: <code>docker-compose ps grafana</code></li>
+                                        <li>• Verify Grafana logs: <code>docker-compose logs grafana</code></li>
+                                        <li>• Ensure port 3000 is accessible</li>
+                                        <li>• Check Docker network connectivity</li>
+                                    </ul>
+                                </div>
+                                <div class="mt-3 flex space-x-2">
+                                    <button onclick="testGrafanaConnection()" class="bg-yellow-600 text-white px-3 py-1 rounded text-xs hover:bg-yellow-700">
+                                        <i class="fas fa-redo mr-1"></i> Retry Test
+                                    </button>
+                                    <a href="http://localhost:3000" target="_blank" class="bg-blue-600 text-white px-3 py-1 rounded text-xs hover:bg-blue-700">
+                                        <i class="fas fa-external-link-alt mr-1"></i> Try Direct Access
+                                    </a>
+                                </div>
+                            </div>
+                        `;
+                    });
+            }
+        }
+
+        function checkGrafanaLogs() {
+            alert('To check Grafana logs, run: docker-compose logs grafana');
+        }
+
+        // ===== PROMETHEUS FUNCTIONS =====
+        function handlePrometheusLoad() {
+            console.log('Prometheus iframe loaded successfully');
+        }
+
+        function handlePrometheusError() {
+            console.log('Prometheus iframe failed to load');
+            showPrometheusError();
+        }
+
+        function showPrometheusError() {
+            const container = document.getElementById('prometheus-iframe-container');
+            if (container) {
+                container.innerHTML = '<div class="text-center py-12 bg-red-50 border border-red-300 rounded"><i class="fas fa-exclamation-triangle text-4xl text-red-500 mb-4"></i><p class="text-lg text-gray-700 mb-2">Unable to embed Prometheus interface</p><p class="text-sm text-gray-600 mb-4">This may be due to iframe restrictions or connectivity issues.</p><div class="space-y-2"><button onclick="retryPrometheusEmbed()" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 mr-2"><i class="fas fa-redo mr-1"></i> Retry Embed</button><button onclick="openPrometheusDirectly()" class="bg-orange-500 text-white px-4 py-2 rounded hover:bg-orange-600"><i class="fas fa-external-link-alt mr-1"></i> Open Directly</button></div></div>';
+            }
+        }
+
+        function retryPrometheusEmbed() {
+            const container = document.getElementById('prometheus-iframe-container');
+            if (container) {
+                container.innerHTML = '<iframe src="http://localhost:9090/graph" allowfullscreen sandbox="allow-same-origin allow-scripts allow-forms" onload="handlePrometheusLoad()" onerror="handlePrometheusError()" style="width: 100%; height: 100%; border: none;"></iframe>';
+            }
+        }
+
+        function openPrometheusDirectly() {
+            window.open('http://localhost:9090', '_blank');
+        }
+
+        function testPrometheusConnection() {
+            const resultsDiv = document.getElementById('prometheus-test-results');
+            if (resultsDiv) {
+                resultsDiv.classList.remove('hidden');
+                resultsDiv.innerHTML = '<div class="bg-blue-50 border border-blue-300 rounded p-4"><div class="flex items-center"><i class="fas fa-spinner fa-spin text-blue-600 mr-2"></i><p class="text-blue-800">Testing Prometheus connection...</p></div></div>';
+                
+                // Use our backend to test Prometheus instead of direct browser request
+                fetch('/api/monitoring/health')
+                    .then(response => response.json())
+                    .then(data => {
+                        const prometheusStatus = data.find(tool => tool.name === 'Prometheus');
+                        if (prometheusStatus && prometheusStatus.status === 'healthy') {
+                            resultsDiv.innerHTML = `
+                                <div class="bg-green-50 border border-green-300 rounded p-4">
+                                    <div class="flex items-center mb-2">
+                                        <i class="fas fa-check-circle text-green-600 mr-2"></i>
+                                        <h4 class="font-semibold text-green-800">Prometheus Connection Test Successful</h4>
+                                    </div>
+                                    <p class="text-green-700 text-sm">Prometheus is accessible and collecting metrics.</p>
+                                    <p class="text-green-600 text-xs mt-1">Port: ${prometheusStatus.port}</p>
+                                    <div class="mt-3 flex space-x-2">
+                                        <a href="${prometheusStatus.url}" target="_blank" class="bg-green-600 text-white px-3 py-1 rounded text-xs hover:bg-green-700">
+                                            <i class="fas fa-external-link-alt mr-1"></i> Open Prometheus
+                                        </a>
+                                        <a href="${prometheusStatus.url}/targets" target="_blank" class="bg-blue-600 text-white px-3 py-1 rounded text-xs hover:bg-blue-700">
+                                            <i class="fas fa-bullseye mr-1"></i> View Targets
+                                        </a>
+                                    </div>
+                                </div>
+                            `;
+                        } else {
+                            throw new Error(prometheusStatus?.error || 'Service unavailable');
+                        }
+                    })
+                    .catch(error => {
+                        resultsDiv.innerHTML = `
+                            <div class="bg-yellow-50 border border-yellow-300 rounded p-4">
+                                <div class="flex items-center mb-2">
+                                    <i class="fas fa-exclamation-triangle text-yellow-600 mr-2"></i>
+                                    <h4 class="font-semibold text-yellow-800">Prometheus Connection Test Failed</h4>
+                                </div>
+                                <p class="text-yellow-700 text-sm">Error: ${error.message}</p>
+                                <div class="mt-3 p-2 bg-yellow-100 rounded text-xs">
+                                    <p class="font-medium">Troubleshooting suggestions:</p>
+                                    <ul class="mt-1 space-y-1">
+                                        <li>• Check if Prometheus container is running: <code>docker-compose ps prometheus</code></li>
+                                        <li>• Verify Prometheus logs: <code>docker-compose logs prometheus</code></li>
+                                        <li>• Ensure port 9090 is accessible</li>
+                                        <li>• Check Docker network connectivity</li>
+                                        <li>• Verify Prometheus configuration</li>
+                                    </ul>
+                                </div>
+                                <div class="mt-3 flex space-x-2">
+                                    <button onclick="testPrometheusConnection()" class="bg-yellow-600 text-white px-3 py-1 rounded text-xs hover:bg-yellow-700">
+                                        <i class="fas fa-redo mr-1"></i> Retry Test
+                                    </button>
+                                    <a href="http://localhost:9090" target="_blank" class="bg-blue-600 text-white px-3 py-1 rounded text-xs hover:bg-blue-700">
+                                        <i class="fas fa-external-link-alt mr-1"></i> Try Direct Access
+                                    </a>
+                                </div>
+                            </div>
+                        `;
+                    });
+            }
+        }
+
+        function checkPrometheusLogs() {
+            alert('To check Prometheus logs, run: docker-compose logs prometheus');
+        }
+
+        // ===== JAEGER FUNCTIONS =====
+        function handleJaegerLoad() {
+            console.log('Jaeger iframe loaded successfully');
+        }
+
+        function handleJaegerError() {
+            console.log('Jaeger iframe failed to load');
+            showJaegerError();
+        }
+
+        function showJaegerError() {
+            const container = document.getElementById('jaeger-iframe-container');
+            if (container) {
+                container.innerHTML = '<div class="text-center py-12 bg-red-50 border border-red-300 rounded"><i class="fas fa-exclamation-triangle text-4xl text-red-500 mb-4"></i><p class="text-lg text-gray-700 mb-2">Unable to embed Jaeger interface</p><p class="text-sm text-gray-600 mb-4">This may be due to iframe restrictions or connectivity issues.</p><div class="space-y-2"><button onclick="retryJaegerEmbed()" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 mr-2"><i class="fas fa-redo mr-1"></i> Retry Embed</button><button onclick="openJaegerDirectly()" class="bg-indigo-500 text-white px-4 py-2 rounded hover:bg-indigo-600"><i class="fas fa-external-link-alt mr-1"></i> Open Directly</button></div></div>';
+            }
+        }
+
+        function retryJaegerEmbed() {
+            const container = document.getElementById('jaeger-iframe-container');
+            if (container) {
+                container.innerHTML = '<iframe src="http://localhost:16686/search?service=auth-service" allowfullscreen sandbox="allow-same-origin allow-scripts allow-forms" onload="handleJaegerLoad()" onerror="handleJaegerError()" style="width: 100%; height: 100%; border: none;"></iframe>';
+            }
+        }
+
+        function openJaegerDirectly() {
+            window.open('http://localhost:16686', '_blank');
+        }
+
+        function testJaegerConnection() {
+            const resultsDiv = document.getElementById('jaeger-test-results');
+            if (resultsDiv) {
+                resultsDiv.classList.remove('hidden');
+                resultsDiv.innerHTML = '<div class="bg-blue-50 border border-blue-300 rounded p-4"><div class="flex items-center"><i class="fas fa-spinner fa-spin text-blue-600 mr-2"></i><p class="text-blue-800">Testing Jaeger connection...</p></div></div>';
+                
+                // Use our backend to test Jaeger instead of direct browser request
+                fetch('/api/monitoring/health')
+                    .then(response => response.json())
+                    .then(data => {
+                        const jaegerStatus = data.find(tool => tool.name === 'Jaeger');
+                        if (jaegerStatus && jaegerStatus.status === 'healthy') {
+                            resultsDiv.innerHTML = `
+                                <div class="bg-green-50 border border-green-300 rounded p-4">
+                                    <div class="flex items-center mb-2">
+                                        <i class="fas fa-check-circle text-green-600 mr-2"></i>
+                                        <h4 class="font-semibold text-green-800">Jaeger Connection Test Successful</h4>
+                                    </div>
+                                    <p class="text-green-700 text-sm">Jaeger is accessible and collecting traces.</p>
+                                    <p class="text-green-600 text-xs mt-1">Port: ${jaegerStatus.port}</p>
+                                    <div class="mt-3 flex space-x-2">
+                                        <a href="${jaegerStatus.url}" target="_blank" class="bg-green-600 text-white px-3 py-1 rounded text-xs hover:bg-green-700">
+                                            <i class="fas fa-external-link-alt mr-1"></i> Open Jaeger
+                                        </a>
+                                        <a href="${jaegerStatus.url}/search" target="_blank" class="bg-blue-600 text-white px-3 py-1 rounded text-xs hover:bg-blue-700">
+                                            <i class="fas fa-search mr-1"></i> Search Traces
+                                        </a>
+                                    </div>
+                                </div>
+                            `;
+                        } else {
+                            throw new Error(jaegerStatus?.error || 'Service unavailable');
+                        }
+                    })
+                    .catch(error => {
+                        resultsDiv.innerHTML = `
+                            <div class="bg-yellow-50 border border-yellow-300 rounded p-4">
+                                <div class="flex items-center mb-2">
+                                    <i class="fas fa-exclamation-triangle text-yellow-600 mr-2"></i>
+                                    <h4 class="font-semibold text-yellow-800">Jaeger Connection Test Failed</h4>
+                                </div>
+                                <p class="text-yellow-700 text-sm">Error: ${error.message}</p>
+                                <div class="mt-3 p-2 bg-yellow-100 rounded text-xs">
+                                    <p class="font-medium">Troubleshooting suggestions:</p>
+                                    <ul class="mt-1 space-y-1">
+                                        <li>• Check if Jaeger container is running: <code>docker-compose ps jaeger</code></li>
+                                        <li>• Verify Jaeger logs: <code>docker-compose logs jaeger</code></li>
+                                        <li>• Ensure port 16686 is accessible</li>
+                                        <li>• Check Docker network connectivity</li>
+                                        <li>• Verify Jaeger is properly configured</li>
+                                    </ul>
+                                </div>
+                                <div class="mt-3 flex space-x-2">
+                                    <button onclick="testJaegerConnection()" class="bg-yellow-600 text-white px-3 py-1 rounded text-xs hover:bg-yellow-700">
+                                        <i class="fas fa-redo mr-1"></i> Retry Test
+                                    </button>
+                                    <a href="http://localhost:16686" target="_blank" class="bg-blue-600 text-white px-3 py-1 rounded text-xs hover:bg-blue-700">
+                                        <i class="fas fa-external-link-alt mr-1"></i> Try Direct Access
+                                    </a>
+                                </div>
+                            </div>
+                        `;
+                    });
+            }
+        }
+
+        function checkJaegerLogs() {
+            alert('To check Jaeger logs, run: docker-compose logs jaeger');
+        }
+
+        // ===== RABBITMQ FUNCTIONS (keeping existing) =====
         function handleRabbitMQLoad() {
             console.log('RabbitMQ iframe loaded successfully');
             // Check if it's actually the login page or management interface
