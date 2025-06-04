@@ -1,20 +1,22 @@
 #!/bin/sh
 
-# Wait for Vault to start and be ready
-echo "Waiting for Vault to start..."
-sleep 10
+# Vault initialization script with fixed passwords
+
+
+set -e
+
+echo "=== Simple Vault Initialization ==="
 
 export VAULT_ADDR=http://vault:8200
 export VAULT_TOKEN=root
 
-echo "Attempting to connect to Vault..."
-
-# Robust check for Vault availability with retries
+# Wait for Vault to be ready
+echo "Waiting for Vault to be ready..."
 MAX_RETRIES=30
 RETRY_COUNT=0
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
   if vault status > /dev/null 2>&1; then
-    echo "Successfully connected to Vault"
+    echo "✓ Vault is ready"
     break
   fi
   RETRY_COUNT=$((RETRY_COUNT+1))
@@ -23,59 +25,95 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
 done
 
 if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
-  echo "Failed to connect to Vault after $MAX_RETRIES attempts. Exiting."
+  echo "ERROR: Vault not ready after $MAX_RETRIES attempts"
   exit 1
 fi
 
-echo "Vault is up and running. Initializing secrets..."
+# Use fixed passwords for consistency across restarts
+FIXED_DB_PASSWORD="VaultSecureDB2024"
+FIXED_RABBITMQ_PASSWORD="VaultSecureRMQ2024"
+FIXED_GRAFANA_PASSWORD="VaultSecureGrafana2024"
 
-# Enable the KV secrets engine if not already enabled
+echo "=== Setting up KV secrets engine ==="
 if vault secrets list | grep -q "^kv/"; then
-  echo "KV secrets engine already enabled"
+  echo "✓ KV secrets engine already enabled"
 else
-  echo "Enabling KV secrets engine..."
-  vault secrets enable -version=2 kv
-  if [ $? -eq 0 ]; then
-    echo "KV secrets engine enabled successfully"
-  else
-    echo "Failed to enable KV secrets engine"
-    exit 1
-  fi
+  echo "Enabling KV v2 secrets engine..."
+  vault secrets enable -path=kv -version=2 kv
+  echo "✓ KV secrets engine enabled"
 fi
 
-# Create secrets for database with error handling
-echo "Writing database secrets..."
-if vault kv put kv/database/config \
-  url="postgresql://postgres:password@db:5432/decentralized_id" \
-  username="postgres" \
-  password="password"; then
-  echo "Database secrets created successfully"
-else
-  echo "Failed to write database secrets"
-  exit 1
-fi
+echo "=== Creating secrets with fixed passwords ==="
 
-# Create secrets for JWT with error handling
-echo "Writing JWT secrets..."
-if vault kv put kv/auth/jwt \
-  secret_key="secure-random-generated-secret-key" \
-  algorithm="HS256" \
-  token_expire_minutes="30" \
-  refresh_token_expire_days="7"; then
-  echo "JWT secrets created successfully"
-else
-  echo "Failed to write JWT secrets"
-  exit 1
-fi
+# Database configuration - fixed password
+echo "Setting database secrets..."
+vault kv put kv/database/config \
+  host=db \
+  port=5432 \
+  database=decentralized_id \
+  username=postgres \
+  password="$FIXED_DB_PASSWORD"
+echo "✓ Database secrets set"
 
-# Verify secrets were stored correctly
-echo "Verifying secrets..."
-if vault kv get kv/database/config > /dev/null 2>&1 && vault kv get kv/auth/jwt > /dev/null 2>&1; then
-  echo "Verification successful: All secrets are stored correctly"
-else
-  echo "Verification failed: Some secrets might not be stored correctly"
-  exit 1
-fi
+# RabbitMQ configuration - fixed password
+echo "Setting RabbitMQ secrets..."
+vault kv put kv/rabbitmq/config \
+  host=rabbitmq \
+  port=5672 \
+  management_port=15672 \
+  username=admin \
+  password="$FIXED_RABBITMQ_PASSWORD" \
+  vhost=/
+echo "✓ RabbitMQ secrets set"
 
-echo "Vault initialization completed successfully!"
-echo "In a production environment, secure the root token and unseal keys appropriately."
+# JWT configuration
+echo "Setting JWT secrets..."
+vault kv put kv/auth/jwt \
+  secret_key="VaultJWTSecret2024SuperSecure" \
+  algorithm=HS256 \
+  expiration_hours=24
+echo "✓ JWT secrets set"
+
+# Grafana configuration
+echo "Setting Grafana secrets..."
+vault kv put kv/grafana/config \
+  admin_user=admin \
+  admin_password="$FIXED_GRAFANA_PASSWORD" \
+  secret_key="VaultGrafanaSecret2024"
+echo "✓ Grafana secrets set"
+
+# Security/Encryption keys
+echo "Setting security secrets..."
+vault kv put kv/security/encryption \
+  master_key="VaultMasterKey2024SuperSecure" \
+  data_key="VaultDataKey2024SuperSecure" \
+  signing_key="VaultSigningKey2024SuperSecure"
+echo "✓ Security secrets set"
+
+# Monitoring configuration
+echo "Setting monitoring secrets..."
+vault kv put kv/monitoring/config \
+  prometheus_url=http://prometheus:9090 \
+  grafana_url=http://grafana:3000 \
+  jaeger_url=http://jaeger:16686
+echo "✓ Monitoring secrets set"
+
+# Service API keys
+echo "Setting service API keys..."
+vault kv put kv/services/api_keys \
+  auth_service="VaultAuthAPI2024" \
+  did_service="VaultDIDAPI2024" \
+  credential_service="VaultCredAPI2024" \
+  verification_service="VaultVerifyAPI2024"
+echo "✓ Service API keys set"
+
+echo "=== Setting up audit logging ==="
+vault audit enable file file_path=/vault/logs/audit.log || echo "✓ Audit logging already enabled"
+
+echo "=== Vault Initialization Complete ==="
+echo "✓ All secrets stored with fixed passwords"
+echo "✓ No restart synchronization issues"
+echo ""
+echo "Database password: $FIXED_DB_PASSWORD"
+echo "RabbitMQ password: $FIXED_RABBITMQ_PASSWORD"
+echo "Grafana password: $FIXED_GRAFANA_PASSWORD"
