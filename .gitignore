@@ -1,0 +1,205 @@
+# DIDentity Project .gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# PyCharm
+.idea/
+
+# VS Code
+.vscode/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# Docker
+.dockerignore
+docker-compose.override.yml
+docker-compose.local.yml
+
+# Logs and Databases
+*.log
+*.sqlite
+*.sqlite3
+*.db
+
+# Vault Logs and Data (sensitive)
+vault/logs/
+vault/data/
+vault/file/
+vault/raft/
+
+# Secrets and Configuration (sensitive)
+*.key
+*.pem
+*.crt
+*.p12
+*.pfx
+secrets/
+.secrets
+config/secrets/
+.env.local
+.env.production
+.env.staging
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Windows
+*.lnk
+
+# Node.js (if any frontend components)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.yarn-integrity
+
+# Coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Monitoring and Metrics Data
+prometheus_data/
+grafana_data/
+monitoring/data/
+
+# Database Data
+db-data/
+postgres-data/
+postgresql-data/
+
+# RabbitMQ Data
+rabbitmq-data/
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# IDE and Editor files
+*.sublime-project
+*.sublime-workspace
+.vscode/settings.json
+.vscode/tasks.json
+.vscode/launch.json
+.vscode/extensions.json
+
+# Local development overrides
+docker-compose.dev.yml
+docker-compose.test.yml
+local-config/
+
+# Generated documentation
+docs/_build/
+site/
+
+# Certificates and Keys (security)
+*.csr
+*.der
+*.p7b
+*.p7c
+*.p7r
+*.spc
+
+# Application specific
+# Vault audit logs (contain sensitive data)
+audit.log
+audit-*.log
+
+# Service configuration files with secrets
+*-secrets.env
+vault-secrets.env
+service-configs/
+
+# Test artifacts
+.pytest_cache/
+test-results/
+test-reports/
+
+# Local environment files
+.env.development
+.env.test
+.env.production.local
+.env.development.local
+.env.test.local
+
+# Temporary Docker volumes
+vault-configs/
+vault-data/
+
+# Python virtual environment
+.python-version
+
+# MyPy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# pytype static type analyzer
+.pytype/
+
+# Cython debug symbols
+cython_debug/ 
