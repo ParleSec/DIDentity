@@ -41,14 +41,37 @@ services:
     networks:
       - app-network
 
+  # Service configuration container that retrieves secrets from Vault
+  vault-config:
+    image: hashicorp/vault:latest
+    depends_on:
+      vault-init:
+        condition: service_completed_successfully
+    volumes:
+      - ./vault/scripts:/vault/scripts
+      - vault-configs:/tmp
+    entrypoint: /bin/sh
+    command: /vault/scripts/configure_services.sh
+    environment:
+      - VAULT_ADDR=http://vault:8200
+      - VAULT_TOKEN=root
+    networks:
+      - app-network
+
+  # Database with Vault-managed secrets
   db:
     image: postgres:17
+    depends_on:
+      vault:
+        condition: service_healthy
+      vault-init:
+        condition: service_completed_successfully
     environment:
       - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=password
       - POSTGRES_DB=decentralized_id
+      - POSTGRES_PASSWORD=VaultSecureDB2024  # Fixed password matching Vault
     volumes:
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./init.sql:/docker-entrypoint-initdb.d/99-init.sql
       - db-data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
@@ -57,18 +80,25 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
-      start_period: 10s
+      start_period: 30s
     networks:
       - app-network
 
+  # RabbitMQ with Vault-managed secrets
   rabbitmq:
     image: rabbitmq:3-management
+    depends_on:
+      vault-config:
+        condition: service_completed_successfully
     ports:
       - "5672:5672"   # RabbitMQ main port
       - "15672:15672" # RabbitMQ management UI
+    volumes:
+      - vault-configs:/vault-configs:ro
     environment:
-      - RABBITMQ_DEFAULT_USER=guest
-      - RABBITMQ_DEFAULT_PASS=guest
+      # Fixed credentials matching Vault configuration
+      - RABBITMQ_DEFAULT_USER=admin
+      - RABBITMQ_DEFAULT_PASS=VaultSecureRMQ2024
     healthcheck:
       test: ["CMD", "rabbitmqctl", "status"]
       interval: 10s
@@ -105,6 +135,8 @@ services:
       - RABBITMQ_HOST=rabbitmq
       - SERVICE_NAME=auth-service
       - OTLP_ENDPOINT=jaeger:4317
+    volumes:
+      - ./vault:/app/vault:ro
     depends_on:
       db:
         condition: service_healthy
@@ -136,6 +168,8 @@ services:
       - RABBITMQ_HOST=rabbitmq
       - SERVICE_NAME=did-service
       - OTLP_ENDPOINT=jaeger:4317
+    volumes:
+      - ./vault:/app/vault:ro
     depends_on:
       db:
         condition: service_healthy
@@ -167,6 +201,8 @@ services:
       - RABBITMQ_HOST=rabbitmq
       - SERVICE_NAME=credential-service
       - OTLP_ENDPOINT=jaeger:4317
+    volumes:
+      - ./vault:/app/vault:ro
     depends_on:
       db:
         condition: service_healthy
@@ -198,6 +234,8 @@ services:
       - RABBITMQ_HOST=rabbitmq
       - SERVICE_NAME=verification-service
       - OTLP_ENDPOINT=jaeger:4317
+    volumes:
+      - ./vault:/app/vault:ro
     depends_on:
       db:
         condition: service_healthy
@@ -225,6 +263,7 @@ services:
       - "8080:8000"
     volumes:
       - ./monitoring-dashboard:/app
+      - ./vault:/app/vault:ro
     environment:
       - VAULT_ADDR=http://vault:8200
       - VAULT_TOKEN=root
@@ -241,6 +280,8 @@ services:
         condition: service_started
       grafana:
         condition: service_started
+      vault-init:
+        condition: service_completed_successfully
     networks:
       - app-network
     restart: unless-stopped
@@ -260,30 +301,36 @@ services:
     networks:
       - app-network
 
+  # Grafana with Vault-managed secrets
   grafana:
     image: grafana/grafana:latest
+    depends_on:
+      vault-config:
+        condition: service_completed_successfully
+      prometheus:
+        condition: service_started
     volumes:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
       - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
-      - ./monitoring/grafana/grafana.ini:/etc/grafana/grafana.ini
+      - vault-configs:/vault-configs:ro
       - grafana_data:/var/lib/grafana
     environment:
+      # Fixed credentials matching Vault configuration
       - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_PASSWORD=VaultSecureGrafana2024
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_SECURITY_ALLOW_EMBEDDING=true
     ports:
       - "3000:3000"
     networks:
       - app-network
-    depends_on:
-      - prometheus
 
 volumes:
   prometheus_data:
   grafana_data:
   db-data:
   vault-data:
+  vault-configs:  # Shared volume for Vault configuration files
 
 networks:
   app-network:
