@@ -8,6 +8,19 @@ import asyncio
 from typing import Dict, List
 import os
 import shutil
+import sys
+import base64
+
+# Add vault directory to Python path
+sys.path.append('/app/vault')
+
+try:
+    from vault_client import VaultClient, VaultClientError
+    vault_client = VaultClient()
+    VAULT_AVAILABLE = True
+except ImportError:
+    print("Warning: Vault client not available, using fallback credentials")
+    VAULT_AVAILABLE = False
 
 app = FastAPI(title="DIDentity Monitoring Dashboard")
 
@@ -32,6 +45,34 @@ try:
     app.mount("/static", StaticFiles(directory="static"), name="static")
 except Exception as e:
     print(f"Warning: Could not mount static directory: {e}")
+
+def get_rabbitmq_credentials():
+    """Get RabbitMQ credentials from Vault or fallback"""
+    if VAULT_AVAILABLE:
+        try:
+            rabbitmq_config = vault_client.get_rabbitmq_config()
+            username = rabbitmq_config.get('username', 'admin')
+            password = rabbitmq_config.get('password', 'guest')
+            return username, password
+        except VaultClientError as e:
+            print(f"Warning: Could not retrieve RabbitMQ credentials from Vault: {e}")
+    
+    # Fallback to default credentials
+    return 'guest', 'guest'
+
+def get_grafana_credentials():
+    """Get Grafana credentials from Vault or fallback"""
+    if VAULT_AVAILABLE:
+        try:
+            grafana_config = vault_client.get_grafana_config()
+            username = grafana_config.get('admin_user', 'admin')
+            password = grafana_config.get('admin_password', 'admin')
+            return username, password
+        except VaultClientError as e:
+            print(f"Warning: Could not retrieve Grafana credentials from Vault: {e}")
+    
+    # Fallback to default credentials
+    return 'admin', 'admin'
 
 @app.exception_handler(404)
 async def not_found_handler(request: Request, exc: HTTPException):
@@ -135,10 +176,12 @@ async def check_monitoring_tool_health(tool_name: str, tool_info: Dict) -> Dict:
     """Check if a monitoring tool is accessible"""
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
-            # For RabbitMQ, we need basic auth
+            # For RabbitMQ, we need basic auth with Vault credentials
             headers = {}
             if tool_name == "rabbitmq":
-                headers = {"Authorization": "Basic Z3Vlc3Q6Z3Vlc3Q="}  # guest:guest in base64
+                username, password = get_rabbitmq_credentials()
+                credentials = base64.b64encode(f"{username}:{password}".encode()).decode()
+                headers = {"Authorization": f"Basic {credentials}"}
             
             response = await client.get(tool_info["url"], headers=headers, follow_redirects=True)
             if response.status_code in [200, 301, 302, 401]:  # 401 for RabbitMQ is expected
@@ -157,7 +200,7 @@ async def check_monitoring_tool_health(tool_name: str, tool_info: Dict) -> Dict:
                         for alt_path in tool_info["embed_alternatives"]
                     ]
                 
-                # Add additional RabbitMQ information
+                # Add additional RabbitMQ information with Vault credentials
                 if tool_name == "rabbitmq":
                     try:
                         # Try to get basic API info
@@ -168,7 +211,8 @@ async def check_monitoring_tool_health(tool_name: str, tool_info: Dict) -> Dict:
                                 "version": api_data.get("rabbitmq_version", "Unknown"),
                                 "erlang_version": api_data.get("erlang_version", "Unknown"),
                                 "node_name": api_data.get("node", "Unknown"),
-                                "management_version": api_data.get("management_version", "Unknown")
+                                "management_version": api_data.get("management_version", "Unknown"),
+                                "credentials_source": "Vault" if VAULT_AVAILABLE else "Default"
                             }
                             
                             # Get queue information
@@ -180,7 +224,11 @@ async def check_monitoring_tool_health(tool_name: str, tool_info: Dict) -> Dict:
                                 
                     except Exception as e:
                         # API access failed, but basic connection works
-                        result["rabbitmq_info"] = {"error": "API access limited", "note": "Management UI available"}
+                        result["rabbitmq_info"] = {
+                            "error": "API access limited", 
+                            "note": "Management UI available",
+                            "credentials_source": "Vault" if VAULT_AVAILABLE else "Default"
+                        }
                 
                 return result
     except Exception as e:
@@ -198,32 +246,67 @@ async def check_monitoring_tool_health(tool_name: str, tool_info: Dict) -> Dict:
 async def dashboard(request: Request):
     """Main dashboard page"""
     # Check all services health in parallel
-    service_health_tasks = [
+    service_tasks = [
         check_service_health(name, info) 
         for name, info in SERVICES.items()
     ]
-    services_health = await asyncio.gather(*service_health_tasks)
     
-    # Check monitoring tools health
-    monitoring_health_tasks = [
-        check_monitoring_tool_health(name, info)
+    # Check all monitoring tools health in parallel
+    monitoring_tasks = [
+        check_monitoring_tool_health(name, info) 
         for name, info in MONITORING_TOOLS.items()
     ]
-    monitoring_health = await asyncio.gather(*monitoring_health_tasks)
     
-    # Count healthy services
-    healthy_services = sum(1 for s in services_health if s["status"] == "healthy")
-    healthy_monitoring = sum(1 for m in monitoring_health if m["status"] == "healthy")
-    
-    return templates.TemplateResponse("dashboard.html", {
-        "request": request,
-        "services": services_health,
-        "monitoring_tools": monitoring_health,
-        "healthy_services": healthy_services,
-        "total_services": len(services_health),
-        "healthy_monitoring": healthy_monitoring,
-        "total_monitoring": len(monitoring_health)
-    })
+    # Execute all health checks concurrently
+    try:
+        services_results, monitoring_results = await asyncio.gather(
+            asyncio.gather(*service_tasks),
+            asyncio.gather(*monitoring_tasks)
+        )
+        
+        # Calculate health statistics
+        healthy_services = sum(1 for s in services_results if s["status"] == "healthy")
+        total_services = len(services_results)
+        healthy_monitoring = sum(1 for m in monitoring_results if m["status"] == "healthy")
+        total_monitoring = len(monitoring_results)
+        
+        # Add Vault status information
+        vault_status = None
+        if VAULT_AVAILABLE:
+            try:
+                vault_status = vault_client.health_check()
+            except Exception as e:
+                vault_status = {"status": "unhealthy", "error": str(e)}
+        
+        return templates.TemplateResponse(
+            "dashboard.html",
+            {
+                "request": request,
+                "services": services_results,
+                "monitoring_tools": monitoring_results,
+                "healthy_services": healthy_services,
+                "total_services": total_services,
+                "healthy_monitoring": healthy_monitoring,
+                "total_monitoring": total_monitoring,
+                "vault_status": vault_status,
+                "vault_available": VAULT_AVAILABLE
+            }
+        )
+    except Exception as e:
+        return templates.TemplateResponse(
+            "dashboard.html",
+            {
+                "request": request,
+                "services": [],
+                "monitoring_tools": [],
+                "healthy_services": 0,
+                "total_services": 0,
+                "healthy_monitoring": 0,
+                "total_monitoring": 0,
+                "error": f"Dashboard error: {str(e)}",
+                "vault_available": VAULT_AVAILABLE
+            }
+        )
 
 @app.get("/api/health")
 async def health_check():
