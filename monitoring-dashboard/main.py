@@ -1,15 +1,19 @@
-from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi import FastAPI, Request, HTTPException, Response, Cookie
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.exceptions import RequestValidationError
 import httpx
 import asyncio
-from typing import Dict, List
+from typing import Dict, List, Optional
 import os
 import shutil
 import sys
 import base64
+import hashlib
+import time
+import uuid
+from urllib.parse import urljoin, urlparse
 
 # Add vault directory to Python path
 sys.path.append('/app/vault')
@@ -438,6 +442,285 @@ async def rabbitmq_stats():
         return {"error": "RabbitMQ connection timeout", "status": "error"}
     except Exception as e:
         return {"error": f"Unexpected error: {str(e)}", "status": "error"}
+
+# Session management for secure authentication
+class SessionManager:
+    def __init__(self):
+        self.sessions = {}
+        self.session_timeout = 3600  # 1 hour
+    
+    def create_session(self, user_id: str) -> str:
+        session_id = str(uuid.uuid4())
+        self.sessions[session_id] = {
+            'user_id': user_id,
+            'created_at': time.time(),
+            'last_accessed': time.time()
+        }
+        return session_id
+    
+    def validate_session(self, session_id: str) -> bool:
+        if not session_id or session_id not in self.sessions:
+            return False
+        
+        session = self.sessions[session_id]
+        if time.time() - session['last_accessed'] > self.session_timeout:
+            del self.sessions[session_id]
+            return False
+        
+        session['last_accessed'] = time.time()
+        return True
+    
+    def cleanup_expired_sessions(self):
+        current_time = time.time()
+        expired_sessions = [
+            sid for sid, session in self.sessions.items() 
+            if current_time - session['last_accessed'] > self.session_timeout
+        ]
+        for sid in expired_sessions:
+            del self.sessions[sid]
+
+session_manager = SessionManager()
+
+# Authenticated HTTP client for reuse
+class AuthenticatedClient:
+    def __init__(self):
+        self.grafana_client = None
+        self.rabbitmq_client = None
+        self.client_timeout = 300  # 5 minutes
+        self.last_created = 0
+    
+    async def get_grafana_client(self):
+        current_time = time.time()
+        if (self.grafana_client is None or 
+            current_time - self.last_created > self.client_timeout):
+            
+            username, password = get_grafana_credentials()
+            auth = httpx.BasicAuth(username, password)
+            self.grafana_client = httpx.AsyncClient(
+                auth=auth,
+                timeout=30.0,
+                follow_redirects=True,
+                headers={
+                    'User-Agent': 'DIDentity-Monitoring-Dashboard/1.0'
+                }
+            )
+            self.last_created = current_time
+        return self.grafana_client
+    
+    async def get_rabbitmq_client(self):
+        current_time = time.time()
+        if (self.rabbitmq_client is None or 
+            current_time - self.last_created > self.client_timeout):
+            
+            username, password = get_rabbitmq_credentials()
+            auth = httpx.BasicAuth(username, password)
+            self.rabbitmq_client = httpx.AsyncClient(
+                auth=auth,
+                timeout=30.0,
+                follow_redirects=True,
+                headers={
+                    'User-Agent': 'DIDentity-Monitoring-Dashboard/1.0'
+                }
+            )
+            self.last_created = current_time
+        return self.rabbitmq_client
+    
+    async def close(self):
+        if self.grafana_client:
+            await self.grafana_client.aclose()
+        if self.rabbitmq_client:
+            await self.rabbitmq_client.aclose()
+
+auth_client = AuthenticatedClient()
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    await auth_client.close()
+
+# Secure proxy endpoints
+@app.post("/api/auth/grafana")
+async def authenticate_grafana(response: Response):
+    """Create authenticated session for Grafana access"""
+    try:
+        username, password = get_grafana_credentials()
+        
+        # Test authentication
+        async with httpx.AsyncClient() as client:
+            auth_response = await client.get(
+                "http://grafana:3000/api/user",
+                auth=httpx.BasicAuth(username, password),
+                timeout=10.0
+            )
+            
+            if auth_response.status_code == 200:
+                # Create session
+                session_id = session_manager.create_session("grafana_user")
+                
+                # Set HTTP-only cookie
+                response.set_cookie(
+                    key="grafana_session",
+                    value=session_id,
+                    httponly=True,
+                    secure=False,  # Set to True in production with HTTPS
+                    samesite="strict",
+                    max_age=3600  # 1 hour
+                )
+                
+                return {"status": "authenticated", "expires_in": 3600}
+            else:
+                raise HTTPException(status_code=401, detail="Invalid credentials")
+                
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Authentication failed: {str(e)}")
+
+@app.post("/api/auth/rabbitmq")
+async def authenticate_rabbitmq(response: Response):
+    """Create authenticated session for RabbitMQ access"""
+    try:
+        username, password = get_rabbitmq_credentials()
+        
+        # Test authentication
+        async with httpx.AsyncClient() as client:
+            auth_response = await client.get(
+                "http://rabbitmq:15672/api/overview",
+                auth=httpx.BasicAuth(username, password),
+                timeout=10.0
+            )
+            
+            if auth_response.status_code == 200:
+                # Create session
+                session_id = session_manager.create_session("rabbitmq_user")
+                
+                # Set HTTP-only cookie
+                response.set_cookie(
+                    key="rabbitmq_session",
+                    value=session_id,
+                    httponly=True,
+                    secure=False,  # Set to True in production with HTTPS
+                    samesite="strict",
+                    max_age=3600  # 1 hour
+                )
+                
+                return {"status": "authenticated", "expires_in": 3600}
+            else:
+                raise HTTPException(status_code=401, detail="Invalid credentials")
+                
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Authentication failed: {str(e)}")
+
+@app.get("/api/proxy/grafana/{path:path}")
+async def proxy_grafana(path: str, request: Request, grafana_session: Optional[str] = Cookie(None)):
+    """Secure proxy for Grafana with session-based auth"""
+    if not session_manager.validate_session(grafana_session):
+        raise HTTPException(status_code=401, detail="Session expired or invalid")
+    
+    try:
+        client = await auth_client.get_grafana_client()
+        
+        # Forward query parameters
+        query_params = str(request.url.query)
+        target_url = f"http://grafana:3000/{path}"
+        if query_params:
+            target_url += f"?{query_params}"
+        
+        # Forward the request
+        response = await client.get(target_url)
+        
+        # Return response with appropriate content type
+        content_type = response.headers.get("content-type", "text/html")
+        
+        if "text/html" in content_type:
+            # For HTML responses, modify any absolute URLs to go through proxy
+            content = response.text
+            content = content.replace('href="/', 'href="/api/proxy/grafana/')
+            content = content.replace('src="/', 'src="/api/proxy/grafana/')
+            return Response(content=content, media_type=content_type)
+        else:
+            # For other content (CSS, JS, images, API responses)
+            return Response(
+                content=response.content,
+                status_code=response.status_code,
+                headers=dict(response.headers),
+                media_type=content_type
+            )
+            
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Proxy error: {str(e)}")
+
+@app.get("/api/proxy/rabbitmq/{path:path}")
+async def proxy_rabbitmq(path: str, request: Request, rabbitmq_session: Optional[str] = Cookie(None)):
+    """Secure proxy for RabbitMQ with session-based auth"""
+    if not session_manager.validate_session(rabbitmq_session):
+        raise HTTPException(status_code=401, detail="Session expired or invalid")
+    
+    try:
+        client = await auth_client.get_rabbitmq_client()
+        
+        # Forward query parameters
+        query_params = str(request.url.query)
+        target_url = f"http://rabbitmq:15672/{path}"
+        if query_params:
+            target_url += f"?{query_params}"
+        
+        # Forward the request
+        response = await client.get(target_url)
+        
+        # Return response with appropriate content type
+        content_type = response.headers.get("content-type", "text/html")
+        
+        if "text/html" in content_type:
+            # For HTML responses, modify any absolute URLs to go through proxy
+            content = response.text
+            content = content.replace('href="/', 'href="/api/proxy/rabbitmq/')
+            content = content.replace('src="/', 'src="/api/proxy/rabbitmq/')
+            return Response(content=content, media_type=content_type)
+        else:
+            # For other content (CSS, JS, images, API responses)
+            return Response(
+                content=response.content,
+                status_code=response.status_code,
+                headers=dict(response.headers),
+                media_type=content_type
+            )
+            
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Proxy error: {str(e)}")
+
+@app.get("/api/auth/status")
+async def auth_status(grafana_session: Optional[str] = Cookie(None), 
+                     rabbitmq_session: Optional[str] = Cookie(None)):
+    """Check authentication status for all services"""
+    return {
+        "grafana": session_manager.validate_session(grafana_session),
+        "rabbitmq": session_manager.validate_session(rabbitmq_session)
+    }
+
+@app.post("/api/auth/logout")
+async def logout(response: Response, grafana_session: Optional[str] = Cookie(None),
+                rabbitmq_session: Optional[str] = Cookie(None)):
+    """Logout and clear all sessions"""
+    
+    # Remove sessions
+    if grafana_session and grafana_session in session_manager.sessions:
+        del session_manager.sessions[grafana_session]
+    if rabbitmq_session and rabbitmq_session in session_manager.sessions:
+        del session_manager.sessions[rabbitmq_session]
+    
+    # Clear cookies
+    response.delete_cookie("grafana_session")
+    response.delete_cookie("rabbitmq_session")
+    
+    return {"status": "logged_out"}
+
+# Background task to cleanup expired sessions
+@app.on_event("startup")
+async def startup_event():
+    async def cleanup_sessions():
+        while True:
+            await asyncio.sleep(300)  # Every 5 minutes
+            session_manager.cleanup_expired_sessions()
+    
+    asyncio.create_task(cleanup_sessions())
 
 if __name__ == "__main__":
     import uvicorn
