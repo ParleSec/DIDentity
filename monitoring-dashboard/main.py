@@ -14,6 +14,14 @@ import hashlib
 import time
 import uuid
 from urllib.parse import urljoin, urlparse
+from datetime import datetime
+import logging
+import random
+import string
+
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Add vault directory to Python path
 sys.path.append('/app/vault')
@@ -314,8 +322,7 @@ async def dashboard(request: Request):
 
 @app.get("/api/health")
 async def health_check():
-    """Health check endpoint for the dashboard itself"""
-    return {"status": "healthy", "service": "monitoring-dashboard"}
+    return {"status": "healthy", "timestamp": datetime.now().isoformat()}
 
 @app.get("/api/services/health")
 async def services_health():
@@ -721,6 +728,109 @@ async def startup_event():
             session_manager.cleanup_expired_sessions()
     
     asyncio.create_task(cleanup_sessions())
+
+@app.post("/api/test/workflow")
+async def test_didientity_workflow():
+    """Test the complete DIDentity workflow end-to-end"""
+    try:
+        timestamp = int(time.time())
+        test_user = {
+            "username": f"testuser_{timestamp}",
+            "email": f"test_{timestamp}@example.com",
+            "password": "TestPassword123"
+        }
+        
+        results = {
+            "user": test_user["username"],
+            "steps": []
+        }
+        
+        async with httpx.AsyncClient() as client:
+            # Step 1: User Registration
+            try:
+                auth_response = await client.post(
+                    "http://auth-service:8000/signup",
+                    json=test_user,
+                    timeout=30
+                )
+                if auth_response.status_code != 200:
+                    raise Exception(f"Auth failed with status {auth_response.status_code}")
+                auth_data = auth_response.json()
+                token = auth_data["access_token"]
+                results["steps"].append({"step": 1, "status": "success", "message": "User registration successful"})
+            except Exception as e:
+                results["steps"].append({"step": 1, "status": "error", "message": f"User registration failed: {str(e)}"})
+                return {"status": "error", "results": results}
+            
+            # Step 2: DID Creation
+            try:
+                # Generate a valid Base58 identifier for the key method
+                base58_chars = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+                identifier = ''.join(random.choice(base58_chars) for _ in range(16))
+                
+                did_response = await client.post(
+                    "http://did-service:8000/dids",
+                    json={"method": "key", "identifier": identifier},
+                    headers={"Authorization": f"Bearer {token}"},
+                    timeout=30
+                )
+                if did_response.status_code != 200:
+                    raise Exception(f"DID creation failed with status {did_response.status_code}")
+                did_data = did_response.json()
+                did = did_data["id"]
+                results["did"] = did
+                results["steps"].append({"step": 2, "status": "success", "message": f"DID created: {did}"})
+            except Exception as e:
+                results["steps"].append({"step": 2, "status": "error", "message": f"DID creation failed: {str(e)}"})
+                return {"status": "error", "results": results}
+            
+            # Step 3: Credential Issuance
+            try:
+                credential_data = {
+                    "holder_did": did,
+                    "credential_data": {
+                        "name": "Test User",
+                        "degree": "Bachelor of Science",
+                        "institution": "DIDentity University",
+                        "graduation_year": 2024
+                    }
+                }
+                cred_response = await client.post(
+                    "http://credential-service:8000/credentials/issue",
+                    json=credential_data,
+                    timeout=30
+                )
+                if cred_response.status_code != 200:
+                    raise Exception(f"Credential issuance failed with status {cred_response.status_code}")
+                cred_data = cred_response.json()
+                credential_id = cred_data["credential_id"]
+                results["credential"] = credential_id
+                results["steps"].append({"step": 3, "status": "success", "message": f"Credential issued: {credential_id}"})
+            except Exception as e:
+                results["steps"].append({"step": 3, "status": "error", "message": f"Credential issuance failed: {str(e)}"})
+                return {"status": "error", "results": results}
+            
+            # Step 4: Credential Verification
+            try:
+                verify_response = await client.post(
+                    "http://verification-service:8000/credentials/verify",
+                    json={"credential_id": credential_id},
+                    timeout=30
+                )
+                if verify_response.status_code != 200:
+                    raise Exception(f"Verification failed with status {verify_response.status_code}")
+                verify_data = verify_response.json()
+                results["verification"] = verify_data.get("status", "unknown")
+                results["steps"].append({"step": 4, "status": "success", "message": "Credential verification successful"})
+            except Exception as e:
+                results["steps"].append({"step": 4, "status": "error", "message": f"Verification failed: {str(e)}"})
+                return {"status": "error", "results": results}
+        
+        return {"status": "success", "results": results}
+        
+    except Exception as e:
+        logger.error(f"Workflow test failed: {str(e)}")
+        return {"status": "error", "message": str(e)}
 
 if __name__ == "__main__":
     import uvicorn
