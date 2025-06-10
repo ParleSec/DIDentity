@@ -73,7 +73,7 @@ def get_db_url():
             logger.error(f"Failed to get database URL from Vault: {str(e)}")
     
     # Fallback to environment variable
-    return os.environ.get('DATABASE_URL', 'postgresql://postgres:password@db:5432/decentralized_id')
+    return os.environ.get('DATABASE_URL', 'postgresql://postgres:VaultSecureDB2024@db:5432/decentralized_id')
 
 def get_jwt_secret_key():
     """Get JWT secret key from Vault or environment"""
@@ -156,6 +156,21 @@ def create_refresh_token(data: dict):
     encoded_jwt = jwt.encode(to_encode, get_jwt_secret_key(), algorithm=get_jwt_algorithm())
     return encoded_jwt
 
+def create_tokens(data: dict):
+    """Create both access and refresh tokens and return a Token object"""
+    from .schemas import Token
+    
+    access_token = create_access_token(data)
+    refresh_token = create_refresh_token(data)
+    expires_in = get_token_expire_minutes() * 60  # Convert to seconds
+    
+    return Token(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        token_type="bearer",
+        expires_in=expires_in
+    )
+
 def verify_token(token: str):
     try:
         payload = jwt.decode(token, get_jwt_secret_key(), algorithms=[get_jwt_algorithm()])
@@ -166,14 +181,14 @@ def verify_token(token: str):
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
-def verify_refresh_token(token: str):
+async def verify_refresh_token(token: str):
     try:
         payload = jwt.decode(token, get_jwt_secret_key(), algorithms=[get_jwt_algorithm()])
         username: str = payload.get("sub")
         token_type: str = payload.get("type")
         if username is None or token_type != "refresh":
             raise HTTPException(status_code=401, detail="Invalid refresh token")
-        return username
+        return payload
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid refresh token")
 

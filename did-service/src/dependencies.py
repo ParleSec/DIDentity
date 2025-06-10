@@ -55,7 +55,8 @@ def get_db_url():
         return f"postgresql://{username}:{password}@{host}:{port}/{database}"
     except Exception as e:
         logger.error(f"Failed to get database URL from Vault: {str(e)}")
-        raise
+        # Fallback to environment variable or default
+        return os.environ.get('DATABASE_URL', 'postgresql://postgres:VaultSecureDB2024@db:5432/decentralized_id')
 
 # Database connection
 async def get_db_pool() -> AsyncGenerator[asyncpg.Pool, None]:
