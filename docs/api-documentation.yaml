@@ -1,0 +1,1184 @@
+openapi: 3.0.3
+info:
+  title: DIDentity Platform API
+  description: |
+    Complete API documentation for the DIDentity decentralized identity platform.
+    
+    The DIDentity platform provides a comprehensive solution for managing decentralized identities, 
+    verifiable credentials, and secure authentication. It consists of four main microservices:
+    
+    - **Auth Service** (Port 8004): User registration, authentication, and JWT token management
+    - **DID Service** (Port 8001): Decentralized identifier creation and resolution
+    - **Credential Service** (Port 8002): Verifiable credential issuance and management
+    - **Verification Service** (Port 8003): Credential verification and validation
+    
+    ## Authentication
+    
+    Most endpoints require authentication using JWT Bearer tokens. Obtain tokens through the Auth Service endpoints.
+    
+    ## Base URLs
+    
+    - Auth Service: `http://localhost:8004`
+    - DID Service: `http://localhost:8001`
+    - Credential Service: `http://localhost:8002`
+    - Verification Service: `http://localhost:8003`
+    
+    ## DID Format
+    
+    This implementation uses a custom DID format: `did:DIDMethod.{METHOD}:{identifier}`
+    Examples:
+    - `did:DIDMethod.KEY:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH`
+    - `did:DIDMethod.WEB:example.com`
+    - `did:DIDMethod.ETHR:0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC`
+    
+  version: 1.0.0
+  contact:
+    name: DIDentity Platform
+    url: https://github.com/ParleSec/DIDentity
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8004
+    description: Auth Service (Development)
+  - url: http://localhost:8001
+    description: DID Service (Development)
+  - url: http://localhost:8002
+    description: Credential Service (Development)
+  - url: http://localhost:8003
+    description: Verification Service (Development)
+
+tags:
+  - name: Auth Service
+    description: User authentication and JWT token management
+  - name: DID Service
+    description: Decentralized identifier operations
+  - name: Credential Service
+    description: Verifiable credential management
+  - name: Verification Service
+    description: Credential verification and validation
+  - name: Health & Monitoring
+    description: Health checks and system monitoring
+
+paths:
+  # AUTH SERVICE ENDPOINTS
+  /signup:
+    post:
+      tags:
+        - Auth Service
+      summary: Register a new user
+      description: |
+        Register a new user account and receive access and refresh tokens.
+        
+        This endpoint creates a new user account with the provided credentials and 
+        immediately returns JWT tokens for authentication.
+      operationId: registerUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreate'
+            examples:
+              basic_signup:
+                summary: Basic user registration
+                value:
+                  username: "john_doe"
+                  email: "john.doe@example.com"
+                  password: "SecurePassword123!"
+      responses:
+        '200':
+          description: User successfully registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Token'
+              examples:
+                success:
+                  summary: Successful registration
+                  value:
+                    access_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                    refresh_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                    token_type: "bearer"
+                    expires_in: 1800
+        '500':
+          description: Registration failed (e.g., email already exists, database error)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                database_error:
+                  summary: Database connection error
+                  value:
+                    detail: "Database connection error"
+                email_exists:
+                  summary: Email already registered
+                  value:
+                    detail: "Email already registered"
+
+  /login:
+    post:
+      tags:
+        - Auth Service
+      summary: Authenticate user
+      description: |
+        Authenticate a user with email and password credentials.
+        
+        Uses OAuth2 password flow for authentication and returns JWT tokens.
+      operationId: loginUser
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                  format: email
+                  description: User email address (OAuth2 uses 'username' field)
+                password:
+                  type: string
+                  description: User password
+              required:
+                - username
+                - password
+            examples:
+              login_form:
+                summary: User login
+                value:
+                  username: "john.doe@example.com"
+                  password: "SecurePassword123!"
+      responses:
+        '200':
+          description: Successfully authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Token'
+        '500':
+          description: Authentication failed (invalid credentials, database error)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                database_error:
+                  summary: Database connection error
+                  value:
+                    detail: "Database connection error"
+                invalid_credentials:
+                  summary: Invalid email or password
+                  value:
+                    detail: "Incorrect email or password"
+
+  /token:
+    post:
+      tags:
+        - Auth Service
+      summary: Get access token
+      description: Alternative endpoint for obtaining access tokens using OAuth2 password flow
+      operationId: getToken
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                grant_type:
+                  type: string
+                  enum: [password]
+                  default: password
+              required:
+                - username
+                - password
+      responses:
+        '200':
+          description: Token successfully issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Token'
+        '500':
+          description: Authentication failed
+
+  /token/refresh:
+    post:
+      tags:
+        - Auth Service
+      summary: Refresh access token
+      description: |
+        Refresh an expired access token using a valid refresh token.
+        
+        This endpoint allows clients to obtain new access tokens without re-authentication.
+      operationId: refreshToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+            examples:
+              refresh_request:
+                summary: Token refresh request
+                value:
+                  refresh_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+      responses:
+        '200':
+          description: Token successfully refreshed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Token'
+        '500':
+          description: Invalid or expired refresh token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /token/revoke:
+    post:
+      tags:
+        - Auth Service
+      summary: Revoke token
+      description: |
+        Revoke an access or refresh token to invalidate it.
+        
+        This endpoint requires the token to be provided both as a query parameter and in the request body.
+        The Authorization header is also required.
+      operationId: revokeToken
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: token
+          in: query
+          required: true
+          description: Token to revoke (also required in request body)
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - token
+              properties:
+                token:
+                  type: string
+                  description: Token to revoke (same as query parameter)
+            examples:
+              revoke_token:
+                summary: Revoke token request
+                value:
+                  token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+      responses:
+        '200':
+          description: Token successfully revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Token revoked successfully"
+        '500':
+          description: Token revocation failed
+
+  # DID SERVICE ENDPOINTS
+  /dids:
+    post:
+      tags:
+        - DID Service
+      summary: Create a new DID
+      description: |
+        Create a new Decentralized Identifier (DID) with the specified method and identifier.
+        
+        Supported DID methods:
+        - **key**: DID based on cryptographic keys
+        - **web**: DID based on web domains
+        - **ethr**: DID based on Ethereum addresses
+        - **sov**: DID for Sovrin network
+        - **ion**: DID for ION network
+        
+        The created DID will use the format: `did:DIDMethod.{METHOD}:{identifier}`
+      operationId: createDID
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DIDCreate'
+            examples:
+              key_did:
+                summary: Create key-based DID
+                value:
+                  method: "key"
+                  identifier: "z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH"
+                  controller: null
+              web_did:
+                summary: Create web-based DID
+                value:
+                  method: "web"
+                  identifier: "example.com"
+                  controller: null
+              ethr_did:
+                summary: Create Ethereum-based DID
+                value:
+                  method: "ethr"
+                  identifier: "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"
+                  controller: null
+      responses:
+        '200':
+          description: DID successfully created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DIDDocument'
+              examples:
+                key_did_response:
+                  summary: Created key-based DID
+                  value:
+                    "@context": "https://www.w3.org/ns/did/v1"
+                    id: "did:DIDMethod.KEY:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH"
+                    controller: "did:DIDMethod.KEY:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH"
+                    verificationMethod:
+                      - id: "did:DIDMethod.KEY:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH#keys-1"
+                        type: "Ed25519VerificationKey2020"
+                        controller: "did:DIDMethod.KEY:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH"
+                        publicKeyMultibase: "zz6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH"
+                        publicKeyJwk: null
+                        publicKeyBase58: null
+                        blockchainAccountId: null
+                    authentication:
+                      - "did:DIDMethod.KEY:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH#keys-1"
+                    assertionMethod: null
+                    keyAgreement: null
+                    capabilityInvocation: null
+                    capabilityDelegation: null
+                    service: null
+                web_did_response:
+                  summary: Created web-based DID
+                  value:
+                    "@context": "https://www.w3.org/ns/did/v1"
+                    id: "did:DIDMethod.WEB:example.com"
+                    controller: "did:DIDMethod.WEB:example.com"
+                    verificationMethod:
+                      - id: "did:DIDMethod.WEB:example.com#keys-1"
+                        type: "Ed25519VerificationKey2020"
+                        controller: "did:DIDMethod.WEB:example.com"
+                        publicKeyJwk:
+                          kty: "OKP"
+                          crv: "Ed25519"
+                          x: "8c443818-b555-4f93-a542-695d76613156"
+                        publicKeyBase58: null
+                        publicKeyMultibase: null
+                        blockchainAccountId: null
+                    authentication:
+                      - "did:DIDMethod.WEB:example.com#keys-1"
+                ethr_did_response:
+                  summary: Created Ethereum-based DID
+                  value:
+                    "@context": "https://www.w3.org/ns/did/v1"
+                    id: "did:DIDMethod.ETHR:0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"
+                    controller: "did:DIDMethod.ETHR:0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"
+                    verificationMethod:
+                      - id: "did:DIDMethod.ETHR:0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC#keys-1"
+                        type: "EcdsaSecp256k1RecoveryMethod2020"
+                        controller: "did:DIDMethod.ETHR:0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"
+                        publicKeyJwk: null
+                        publicKeyBase58: null
+                        publicKeyMultibase: null
+                        blockchainAccountId: "eip155:1:0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"
+                    authentication:
+                      - "did:DIDMethod.ETHR:0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC#keys-1"
+        '500':
+          description: DID creation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /dids/{did}:
+    get:
+      tags:
+        - DID Service
+      summary: Resolve a DID
+      description: |
+        Resolve a Decentralized Identifier (DID) to retrieve its DID Document.
+        
+        Returns the complete DID resolution object including metadata.
+        For non-existent DIDs, returns a resolution with error metadata.
+      operationId: resolveDID
+      parameters:
+        - name: did
+          in: path
+          required: true
+          description: The DID to resolve (URL-encoded)
+          schema:
+            type: string
+          examples:
+            key_did:
+              summary: Key-based DID
+              value: "did:DIDMethod.KEY:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH"
+            web_did:
+              summary: Web-based DID
+              value: "did:DIDMethod.WEB:example.com"
+            ethr_did:
+              summary: Ethereum-based DID
+              value: "did:DIDMethod.ETHR:0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"
+      responses:
+        '200':
+          description: DID resolution result (includes both successful and failed resolutions)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DIDResolution'
+              examples:
+                resolved_did:
+                  summary: Successfully resolved DID
+                  value:
+                    didResolutionMetadata:
+                      contentType: "application/did+json"
+                      retrieved: "2025-06-11T03:46:18.506478Z"
+                      error: null
+                    didDocument:
+                      "@context": "https://www.w3.org/ns/did/v1"
+                      id: "did:DIDMethod.KEY:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH"
+                      controller: "did:DIDMethod.KEY:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH"
+                      verificationMethod:
+                        - id: "did:DIDMethod.KEY:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH#keys-1"
+                          type: "Ed25519VerificationKey2020"
+                          controller: "did:DIDMethod.KEY:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH"
+                          publicKeyMultibase: "zz6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH"
+                      authentication:
+                        - "did:DIDMethod.KEY:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH#keys-1"
+                    didDocumentMetadata:
+                      created: "2025-06-11T03:46:18.081298+00:00Z"
+                      updated: "2025-06-11T03:46:18.081298+00:00Z"
+                      deactivated: null
+                      versionId: null
+                did_not_found:
+                  summary: DID not found
+                  value:
+                    didResolutionMetadata:
+                      contentType: "application/did+json"
+                      retrieved: "2025-06-11T03:46:19.499965Z"
+                      error: "DID not found"
+                    didDocument:
+                      id: "did:key:invalid"
+                      "@context": "https://www.w3.org/ns/did/v1"
+                      controller: null
+                      verificationMethod: []
+                      authentication: []
+                      assertionMethod: null
+                      keyAgreement: null
+                      capabilityInvocation: null
+                      capabilityDelegation: null
+                      service: null
+                    didDocumentMetadata:
+                      created: null
+                      updated: null
+                      deactivated: null
+                      versionId: null
+
+  # CREDENTIAL SERVICE ENDPOINTS
+  /credentials/issue:
+    post:
+      tags:
+        - Credential Service
+      summary: Issue a verifiable credential
+      description: |
+        Issue a new verifiable credential for a specified DID holder.
+        
+        The credential data should conform to W3C Verifiable Credentials standards.
+      operationId: issueCredential
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CredentialIssue'
+            examples:
+              education_credential:
+                summary: Education credential
+                value:
+                  holder_did: "did:DIDMethod.KEY:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH"
+                  credential_data:
+                    "@context":
+                      - "https://www.w3.org/2018/credentials/v1"
+                      - "https://www.w3.org/2018/credentials/examples/v1"
+                    type:
+                      - "VerifiableCredential"
+                      - "UniversityDegreeCredential"
+                    credentialSubject:
+                      id: "did:DIDMethod.KEY:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH"
+                      degree:
+                        type: "BachelorDegree"
+                        name: "Bachelor of Computer Science"
+                        university: "Test University"
+                    issuanceDate: "2025-06-11T03:46:18.512045Z"
+              identity_credential:
+                summary: Identity credential
+                value:
+                  holder_did: "did:DIDMethod.KEY:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH"
+                  credential_data:
+                    "@context": ["https://www.w3.org/2018/credentials/v1"]
+                    type: ["VerifiableCredential", "IdentityCredential"]
+                    credentialSubject:
+                      id: "did:DIDMethod.KEY:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH"
+                      name: "Test User"
+                      birthDate: "1990-01-01"
+                      nationality: "US"
+                    issuanceDate: "2025-06-11T03:46:18.512045Z"
+      responses:
+        '200':
+          description: Credential successfully issued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  credential_id:
+                    type: string
+                    description: Unique identifier for the issued credential
+                    example: "cred:05e5c7b7-020f-456e-9f47-f20776d4411a"
+              examples:
+                issued_credential:
+                  summary: Successfully issued credential
+                  value:
+                    credential_id: "cred:05e5c7b7-020f-456e-9f47-f20776d4411a"
+        '500':
+          description: Credential issuance failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # VERIFICATION SERVICE ENDPOINTS
+  /credentials/verify:
+    post:
+      tags:
+        - Verification Service
+      summary: Verify a credential
+      description: |
+        Verify the authenticity and validity of a verifiable credential.
+        
+        This endpoint checks the credential's cryptographic integrity, 
+        issuer validity, and expiration status.
+      operationId: verifyCredential
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CredentialVerify'
+            examples:
+              verify_request:
+                summary: Credential verification request
+                value:
+                  credential_id: "cred:05e5c7b7-020f-456e-9f47-f20776d4411a"
+      responses:
+        '200':
+          description: Credential verification result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerificationResult'
+              examples:
+                valid_credential:
+                  summary: Valid credential
+                  value:
+                    status: "valid"
+                    credential_data:
+                      type: ["VerifiableCredential", "UniversityDegreeCredential"]
+                      "@context": 
+                        - "https://www.w3.org/2018/credentials/v1"
+                        - "https://www.w3.org/2018/credentials/examples/v1"
+                      issuanceDate: "2025-06-11T03:46:18.512045Z"
+                      credentialSubject:
+                        id: "did:DIDMethod.KEY:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH"
+                        degree:
+                          name: "Bachelor of Computer Science"
+                          type: "BachelorDegree"
+                          university: "Test University"
+                    holder_did: "did:DIDMethod.KEY:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH"
+                    did_document:
+                      id: "did:DIDMethod.KEY:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH"
+                      "@context": "https://www.w3.org/ns/did/v1"
+                      controller: "did:DIDMethod.KEY:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH"
+                      verificationMethod:
+                        - id: "did:DIDMethod.KEY:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH#keys-1"
+                          type: "Ed25519VerificationKey2020"
+                          controller: "did:DIDMethod.KEY:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH"
+                          publicKeyMultibase: "zz6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH"
+                      authentication:
+                        - "did:DIDMethod.KEY:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH#keys-1"
+        '500':
+          description: Verification failed or credential not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                credential_not_found:
+                  summary: Credential not found
+                  value:
+                    detail: "Database connection error"
+
+  # HEALTH CHECK ENDPOINTS
+  /health:
+    get:
+      tags:
+        - Health & Monitoring
+      summary: Health check
+      description: |
+        Check the health status of the service and its dependencies.
+        
+        Returns detailed health information including database connectivity.
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service health status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              examples:
+                healthy:
+                  summary: Healthy service
+                  value:
+                    status: "healthy"
+                    database: "connected"
+                    timestamp: "2025-06-11T03:46:17Z"
+                unhealthy:
+                  summary: Unhealthy service
+                  value:
+                    status: "unhealthy" 
+                    database: "disconnected"
+                    error: "Database connection failed"
+
+  # SDK GENERATION ENDPOINTS (Only available for Auth and DID services)
+  /sdk/{language}:
+    get:
+      tags:
+        - SDK Generation
+      summary: Generate client SDK
+      description: |
+        Generate or get instructions for creating a client SDK in the specified programming language.
+        
+        Currently supported languages: typescript, python, java
+        
+        **Note**: This endpoint is only available for Auth Service (port 8004) and DID Service (port 8001).
+        Credential Service and Verification Service do not provide SDK endpoints.
+      operationId: generateSDK
+      parameters:
+        - name: language
+          in: path
+          required: true
+          description: Programming language for SDK generation
+          schema:
+            type: string
+            enum: [typescript, python, java]
+          examples:
+            typescript:
+              summary: TypeScript SDK
+              value: "typescript"
+            python:
+              summary: Python SDK
+              value: "python"
+            java:
+              summary: Java SDK
+              value: "java"
+      responses:
+        '200':
+          description: SDK generation instructions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: Information about SDK generation
+                  steps:
+                    type: array
+                    items:
+                      type: string
+                    description: Steps to generate the SDK
+              examples:
+                typescript_sdk:
+                  summary: TypeScript SDK instructions
+                  value:
+                    message: "SDK for typescript would be generated here"
+                    steps:
+                      - "1. Download the OpenAPI spec from /openapi.json"
+                      - "2. Use an OpenAPI generator tool to create a typescript client"
+                      - "3. Example command: openapi-generator-cli generate -i openapi.json -g typescript -o ./generated-client"
+                python_sdk:
+                  summary: Python SDK instructions
+                  value:
+                    message: "SDK for python would be generated here"
+                    steps:
+                      - "1. Download the OpenAPI spec from /openapi.json"
+                      - "2. Use an OpenAPI generator tool to create a python client"
+                      - "3. Example command: openapi-generator-cli generate -i openapi.json -g python -o ./generated-client"
+        '404':
+          description: SDK endpoint not available for this service
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT Bearer token authentication. 
+        
+        Obtain tokens from the Auth Service `/signup` or `/login` endpoints.
+        
+        Format: `Authorization: Bearer <token>`
+
+  schemas:
+    # AUTH SERVICE SCHEMAS
+    UserCreate:
+      type: object
+      required:
+        - username
+        - email
+        - password
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 50
+          description: Unique username for the account
+          example: "john_doe"
+        email:
+          type: string
+          format: email
+          description: Valid email address
+          example: "john.doe@example.com"
+        password:
+          type: string
+          minLength: 8
+          description: Strong password (minimum 8 characters)
+          example: "SecurePassword123!"
+
+    Token:
+      type: object
+      properties:
+        access_token:
+          type: string
+          description: JWT access token for API authentication
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJqb2huLmRvZUBleGFtcGxlLmNvbSIsInVzZXJfaWQiOiIxMjMiLCJleHAiOjE3MDUzMTk0MDB9.signature"
+        refresh_token:
+          type: string
+          nullable: true
+          description: JWT refresh token for obtaining new access tokens
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJqb2huLmRvZUBleGFtcGxlLmNvbSIsInRva2VuX3R5cGUiOiJyZWZyZXNoIiwiZXhwIjoxNzA1OTI0MjAwfQ.signature"
+        token_type:
+          type: string
+          default: "bearer"
+          description: Token type (always 'bearer')
+          example: "bearer"
+        expires_in:
+          type: integer
+          default: 1800
+          description: Token expiration time in seconds
+          example: 1800
+
+    TokenRefresh:
+      type: object
+      required:
+        - refresh_token
+      properties:
+        refresh_token:
+          type: string
+          description: Valid refresh token
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+
+    # DID SERVICE SCHEMAS
+    DIDMethod:
+      type: string
+      enum: ["key", "web", "ethr", "sov", "ion"]
+      description: |
+        Supported DID methods:
+        - **key**: Cryptographic key-based DIDs
+        - **web**: Web domain-based DIDs
+        - **ethr**: Ethereum blockchain-based DIDs
+        - **sov**: Sovrin network DIDs
+        - **ion**: ION network DIDs
+
+    DIDCreate:
+      type: object
+      required:
+        - method
+        - identifier
+      properties:
+        method:
+          $ref: '#/components/schemas/DIDMethod'
+        identifier:
+          type: string
+          minLength: 1
+          maxLength: 256
+          description: |
+            Method-specific identifier:
+            - **key**: Base58-encoded public key
+            - **web**: Domain name
+            - **ethr**: Ethereum address (0x...)
+            - **sov**: Sovrin-specific identifier
+            - **ion**: ION-specific identifier
+          examples:
+            - "z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH"
+            - "example.com"
+            - "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"
+        controller:
+          type: string
+          nullable: true
+          description: Optional controller DID (defaults to the created DID)
+          example: "did:DIDMethod.KEY:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH"
+
+    VerificationMethod:
+      type: object
+      required:
+        - id
+        - type
+        - controller
+      properties:
+        id:
+          type: string
+          description: Verification method identifier
+          example: "did:DIDMethod.KEY:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH#keys-1"
+        type:
+          type: string
+          description: Verification method type
+          examples:
+            - "Ed25519VerificationKey2020"
+            - "EcdsaSecp256k1RecoveryMethod2020"
+            - "JsonWebKey2020"
+        controller:
+          type: string
+          description: Controller of this verification method
+          example: "did:DIDMethod.KEY:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH"
+        publicKeyJwk:
+          type: object
+          nullable: true
+          description: Public key in JWK format
+        publicKeyBase58:
+          type: string
+          nullable: true
+          description: Public key in Base58 format
+        publicKeyMultibase:
+          type: string
+          nullable: true
+          description: Public key in Multibase format
+        blockchainAccountId:
+          type: string
+          nullable: true
+          description: Blockchain account identifier (for ethr method)
+          example: "eip155:1:0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"
+
+    ServiceEndpoint:
+      type: object
+      required:
+        - id
+        - type
+        - serviceEndpoint
+      properties:
+        id:
+          type: string
+          description: Service endpoint identifier
+          example: "did:DIDMethod.KEY:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH#service-1"
+        type:
+          type: string
+          description: Service type
+          examples:
+            - "LinkedDomains"
+            - "CredentialIssuer"
+            - "MessagingService"
+        serviceEndpoint:
+          oneOf:
+            - type: string
+              format: uri
+            - type: array
+              items:
+                type: string
+                format: uri
+          description: Service endpoint URL(s)
+          examples:
+            - "https://example.com/service"
+            - ["https://example.com/service1", "https://example.com/service2"]
+        description:
+          type: string
+          nullable: true
+          description: Optional service description
+
+    DIDDocument:
+      type: object
+      required:
+        - id
+      properties:
+        "@context":
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+          default: "https://www.w3.org/ns/did/v1"
+          description: JSON-LD context
+        id:
+          type: string
+          description: The DID identifier (uses custom format did:DIDMethod.{METHOD}:{identifier})
+          example: "did:DIDMethod.KEY:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH"
+        controller:
+          type: string
+          nullable: true
+          description: Controller of the DID
+        verificationMethod:
+          type: array
+          items:
+            $ref: '#/components/schemas/VerificationMethod'
+          description: Verification methods for the DID
+        authentication:
+          type: array
+          items:
+            oneOf:
+              - type: string
+              - $ref: '#/components/schemas/VerificationMethod'
+          description: Authentication verification methods
+        assertionMethod:
+          type: array
+          nullable: true
+          items:
+            oneOf:
+              - type: string
+              - $ref: '#/components/schemas/VerificationMethod'
+          description: Assertion verification methods
+        keyAgreement:
+          type: array
+          nullable: true
+          items:
+            oneOf:
+              - type: string
+              - $ref: '#/components/schemas/VerificationMethod'
+          description: Key agreement verification methods
+        capabilityInvocation:
+          type: array
+          nullable: true
+          items:
+            oneOf:
+              - type: string
+              - $ref: '#/components/schemas/VerificationMethod'
+          description: Capability invocation verification methods
+        capabilityDelegation:
+          type: array
+          nullable: true
+          items:
+            oneOf:
+              - type: string
+              - $ref: '#/components/schemas/VerificationMethod'
+          description: Capability delegation verification methods
+        service:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/ServiceEndpoint'
+          description: Service endpoints
+
+    DIDResolutionMetadata:
+      type: object
+      properties:
+        contentType:
+          type: string
+          default: "application/did+json"
+          description: Content type of the resolved DID document
+        retrieved:
+          type: string
+          format: date-time
+          description: Timestamp when the DID was retrieved
+          example: "2025-06-11T03:46:18.506478Z"
+        error:
+          type: string
+          nullable: true
+          description: Error message if resolution failed
+          example: "DID not found"
+
+    DIDDocumentMetadata:
+      type: object
+      properties:
+        created:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp when the DID was created
+          example: "2025-06-11T03:46:18.081298+00:00Z"
+        updated:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp when the DID was last updated
+          example: "2025-06-11T03:46:18.081298+00:00Z"
+        deactivated:
+          type: boolean
+          nullable: true
+          description: Whether the DID is deactivated
+        versionId:
+          type: string
+          nullable: true
+          description: Version identifier of the DID document
+
+    DIDResolution:
+      type: object
+      required:
+        - didResolutionMetadata
+        - didDocument
+        - didDocumentMetadata
+      properties:
+        didResolutionMetadata:
+          $ref: '#/components/schemas/DIDResolutionMetadata'
+        didDocument:
+          $ref: '#/components/schemas/DIDDocument'
+        didDocumentMetadata:
+          $ref: '#/components/schemas/DIDDocumentMetadata'
+
+    # CREDENTIAL SERVICE SCHEMAS
+    CredentialIssue:
+      type: object
+      required:
+        - holder_did
+        - credential_data
+      properties:
+        holder_did:
+          type: string
+          description: DID of the credential holder (uses custom DID format)
+          example: "did:DIDMethod.KEY:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH"
+        credential_data:
+          type: object
+          description: |
+            Verifiable credential data conforming to W3C VC standards.
+            
+            Must include at minimum:
+            - @context: JSON-LD context
+            - type: Credential types
+            - credentialSubject: Subject data
+            - issuanceDate: When the credential was issued
+          example:
+            "@context":
+              - "https://www.w3.org/2018/credentials/v1"
+              - "https://www.w3.org/2018/credentials/examples/v1"
+            type:
+              - "VerifiableCredential"
+              - "UniversityDegreeCredential"
+            credentialSubject:
+              id: "did:DIDMethod.KEY:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH"
+              degree:
+                type: "BachelorDegree"
+                name: "Bachelor of Computer Science"
+                university: "Test University"
+            issuanceDate: "2025-06-11T03:46:18.512045Z"
+
+    # VERIFICATION SERVICE SCHEMAS
+    CredentialVerify:
+      type: object
+      required:
+        - credential_id
+      properties:
+        credential_id:
+          type: string
+          description: Unique identifier of the credential to verify
+          example: "cred:05e5c7b7-020f-456e-9f47-f20776d4411a"
+
+    VerificationResult:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: ["valid", "invalid", "revoked", "expired"]
+          description: |
+            Verification status:
+            - **valid**: Credential is valid and verified
+            - **invalid**: Credential failed verification
+            - **revoked**: Credential has been revoked
+            - **expired**: Credential has expired
+          example: "valid"
+        credential_data:
+          type: object
+          nullable: true
+          description: Original credential data (if valid)
+        holder_did:
+          type: string
+          nullable: true
+          description: DID of the credential holder (uses custom DID format)
+          example: "did:DIDMethod.KEY:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH"
+        did_document:
+          nullable: true
+          $ref: '#/components/schemas/DIDDocument'
+        error:
+          type: string
+          nullable: true
+          description: Error message if verification failed
+          example: "Credential signature verification failed"
+
+    # SHARED SCHEMAS
+    ErrorResponse:
+      type: object
+      required:
+        - detail
+      properties:
+        detail:
+          type: string
+          description: Error message describing what went wrong
+          example: "Database connection error"
+        code:
+          type: string
+          nullable: true
+          description: Optional error code for programmatic handling
+          example: "DATABASE_ERROR"
+
+    HealthResponse:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: ["healthy", "unhealthy"]
+          description: Overall health status of the service
+        database:
+          type: string
+          nullable: true
+          description: Database connection status
+          example: "connected"
+        timestamp:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp of the health check
+          example: "2025-06-11T03:46:17Z"
+        error:
+          type: string
+          nullable: true
+          description: Error message if service is unhealthy
+
+# Security applied to all endpoints by default
+security: [] 
