@@ -851,9 +851,9 @@
         const grafanaBaseUrl = 'http://localhost:3000';
         const grafanaEmbedUrls = [
             '{{ monitoring_tools|selectattr("name", "equalto", "Grafana")|first|attr("embed_url") if monitoring_tools|selectattr("name", "equalto", "Grafana")|first else "" }}',
-            grafanaBaseUrl + '/d/didservices/dididentity-services?orgId=1&refresh=5s&kiosk',
-            grafanaBaseUrl + '/d/didservices/dididentity-services?orgId=1&kiosk=tv',
-            grafanaBaseUrl + '/d/didservices/dididentity-services?orgId=1'
+            grafanaBaseUrl + '/d/did-services-overview/did-services-overview?orgId=1&refresh=5s&kiosk',
+            grafanaBaseUrl + '/d/did-services-overview/did-services-overview?orgId=1&kiosk=tv',
+            grafanaBaseUrl + '/d/did-services-overview/did-services-overview?orgId=1'
         ];
         
         let grafanaEmbedAttempts = 0;
@@ -1001,7 +1001,7 @@
                                         <a href="${grafanaStatus.url}" target="_blank" class="bg-green-600 text-white px-3 py-1 rounded text-xs hover:bg-green-700">
                                             <i class="fas fa-external-link-alt mr-1"></i> Open Grafana
                                         </a>
-                                        <a href="${grafanaStatus.url}/d/didservices/dididentity-services?orgId=1" target="_blank" class="bg-blue-600 text-white px-3 py-1 rounded text-xs hover:bg-blue-700">
+                                        <a href="${grafanaStatus.url}/d/did-services-overview/did-services-overview?orgId=1" target="_blank" class="bg-blue-600 text-white px-3 py-1 rounded text-xs hover:bg-blue-700">
                                             <i class="fas fa-chart-line mr-1"></i> View Dashboard
                                         </a>
                                     </div>
