@@ -6,8 +6,8 @@
         "datasource": "-- Grafana --",
         "enable": true,
         "hide": true,
-        "iconColor": "rgba(0, 211, 255, 1)",
-        "name": "Annotations & Alerts",
+        "iconColor": "rgba(255, 96, 96, 1)",
+        "name": "Security Alerts",
         "type": "dashboard"
       }
     ]
@@ -15,47 +15,254 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
-  "id": 1,
-  "links": [
-    {
-      "asDropdown": false,
-      "icon": "external link",
-      "includeVars": false,
-      "keepTime": false,
-      "tags": ["security"],
-      "targetBlank": true,
-      "title": "Security Metrics",
-      "tooltip": "",
-      "type": "dashboards",
-      "url": ""
-    },
-    {
-      "asDropdown": false,
-      "icon": "external link",
-      "includeVars": false,
-      "keepTime": false,
-      "tags": ["health"],
-      "targetBlank": true,
-      "title": "Service Health",
-      "tooltip": "",
-      "type": "dashboards",
-      "url": ""
-    },
-    {
-      "asDropdown": false,
-      "icon": "external link",
-      "includeVars": false,
-      "keepTime": false,
-      "tags": ["api"],
-      "targetBlank": true,
-      "title": "API Analytics",
-      "tooltip": "",
-      "type": "dashboards",
-      "url": ""
-    }
-  ],
+  "id": null,
+  "links": [],
   "liveNow": false,
   "panels": [
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 10
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "9.0.0",
+      "targets": [
+        {
+          "expr": "rate(auth_failures_total[5m]) * 300",
+          "legendFormat": "Authentication Failures (5m rate)",
+          "refId": "A"
+        }
+      ],
+      "title": "Auth Failures Rate",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 5
+              },
+              {
+                "color": "red",
+                "value": 20
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "9.0.0",
+      "targets": [
+        {
+          "expr": "rate(rate_limit_exceeded_total[5m]) * 300",
+          "legendFormat": "Rate Limit Exceeded (5m rate)",
+          "refId": "A"
+        }
+      ],
+      "title": "Rate Limit Violations",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
+      "id": 3,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "9.0.0",
+      "targets": [
+        {
+          "expr": "rate(did_verification_failures_total[5m]) * 300",
+          "legendFormat": "DID Verification Failures (5m rate)",
+          "refId": "A"
+        }
+      ],
+      "title": "DID Verification Failures",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "id": 4,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "9.0.0",
+      "targets": [
+        {
+          "expr": "rate(security_events_total{event_type=\"suspicious_activity\"}[5m]) * 300",
+          "legendFormat": "Suspicious Activity (5m rate)",
+          "refId": "A"
+        }
+      ],
+      "title": "Suspicious Activity",
+      "type": "stat"
+    },
     {
       "datasource": {
         "type": "prometheus",
@@ -71,7 +278,7 @@
             "axisPlacement": "auto",
             "barAlignment": 0,
             "drawStyle": "line",
-            "fillOpacity": 20,
+            "fillOpacity": 10,
             "gradientMode": "none",
             "hideFrom": {
               "legend": false,
@@ -79,7 +286,7 @@
               "viz": false
             },
             "lineInterpolation": "linear",
-            "lineWidth": 2,
+            "lineWidth": 1,
             "pointSize": 5,
             "scaleDistribution": {
               "type": "linear"
@@ -113,31 +320,31 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 9,
+        "h": 8,
         "w": 12,
         "x": 0,
-        "y": 0
+        "y": 8
       },
-      "id": 2,
+      "id": 5,
       "options": {
         "legend": {
-          "calcs": ["mean", "lastNotNull"],
-          "displayMode": "table",
+          "calcs": [],
+          "displayMode": "list",
           "placement": "bottom"
         },
         "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
+          "mode": "single",
+          "sort": "none"
         }
       },
       "targets": [
         {
-          "expr": "sum(rate(http_requests_total[5m])) by (job)",
-          "legendFormat": "{{job}} - Requests/sec",
+          "expr": "rate(auth_failures_total[5m])",
+          "legendFormat": "{{service}} - {{reason}}",
           "refId": "A"
         }
       ],
-      "title": "HTTP Request Rate by Service",
+      "title": "Authentication Failures by Service",
       "type": "timeseries"
     },
     {
@@ -155,7 +362,7 @@
             "axisPlacement": "auto",
             "barAlignment": 0,
             "drawStyle": "line",
-            "fillOpacity": 20,
+            "fillOpacity": 10,
             "gradientMode": "none",
             "hideFrom": {
               "legend": false,
@@ -163,7 +370,7 @@
               "viz": false
             },
             "lineInterpolation": "linear",
-            "lineWidth": 2,
+            "lineWidth": 1,
             "pointSize": 5,
             "scaleDistribution": {
               "type": "linear"
@@ -173,222 +380,6 @@
             "stacking": {
               "group": "A",
               "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "line"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 200
-              },
-              {
-                "color": "red",
-                "value": 500
-              }
-            ]
-          },
-          "unit": "ms"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 9,
-        "w": 12,
-        "x": 12,
-        "y": 0
-      },
-      "id": 4,
-      "options": {
-        "legend": {
-          "calcs": ["mean", "lastNotNull"],
-          "displayMode": "table",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "targets": [
-        {
-          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, job)) * 1000",
-          "legendFormat": "{{job}} - 95th Percentile",
-          "refId": "A"
-        },
-        {
-          "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, job)) * 1000",
-          "legendFormat": "{{job}} - 50th Percentile",
-          "refId": "B"
-        }
-      ],
-      "title": "HTTP Response Time Percentiles",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "custom": {
-            "align": "auto",
-            "displayMode": "auto",
-            "inspect": false
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Status"
-            },
-            "properties": [
-              {
-                "id": "custom.displayMode",
-                "value": "color-background"
-              },
-              {
-                "id": "mappings",
-                "value": [
-                  {
-                    "options": {
-                      "0": {
-                        "color": "red",
-                        "index": 1,
-                        "text": "DOWN"
-                      },
-                      "1": {
-                        "color": "green",
-                        "index": 0,
-                        "text": "UP"
-                      }
-                    },
-                    "type": "value"
-                  }
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 9
-      },
-      "id": 6,
-      "options": {
-        "showHeader": true,
-        "sortBy": [
-          {
-            "desc": false,
-            "displayName": "Service"
-          }
-        ]
-      },
-      "pluginVersion": "9.0.0",
-      "targets": [
-        {
-          "expr": "up{job=~\".*-service\"}",
-          "format": "table",
-          "instant": true,
-          "legendFormat": "",
-          "refId": "A"
-        },
-        {
-          "expr": "sum(rate(http_requests_total[5m])) by (job)",
-          "format": "table",
-          "instant": true,
-          "legendFormat": "",
-          "refId": "B"
-        }
-      ],
-      "title": "Service Status Overview",
-      "transformations": [
-        {
-          "id": "merge",
-          "options": {}
-        },
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "Time": true,
-              "__name__": true,
-              "instance": true
-            },
-            "indexByName": {},
-            "renameByName": {
-              "Value #A": "Status",
-              "Value #B": "Req/s",
-              "job": "Service"
-            }
-          }
-        }
-      ],
-      "type": "table"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 20,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 2,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "normal"
             },
             "thresholdsStyle": {
               "mode": "off"
@@ -416,38 +407,28 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 9
+        "y": 8
       },
-      "id": 8,
+      "id": 6,
       "options": {
         "legend": {
-          "calcs": ["lastNotNull"],
-          "displayMode": "table",
+          "calcs": [],
+          "displayMode": "list",
           "placement": "bottom"
         },
         "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
+          "mode": "single",
+          "sort": "none"
         }
       },
       "targets": [
         {
-          "expr": "sum(rate(http_requests_total{status_code=~\"2..\"}[5m])) by (job)",
-          "legendFormat": "{{job}} - 2xx Success",
+          "expr": "rate(jwt_token_validation_failures_total[5m])",
+          "legendFormat": "{{service}} - {{error_type}}",
           "refId": "A"
-        },
-        {
-          "expr": "sum(rate(http_requests_total{status_code=~\"4..\"}[5m])) by (job)",
-          "legendFormat": "{{job}} - 4xx Client Error",
-          "refId": "B"
-        },
-        {
-          "expr": "sum(rate(http_requests_total{status_code=~\"5..\"}[5m])) by (job)",
-          "legendFormat": "{{job}} - 5xx Server Error",
-          "refId": "C"
         }
       ],
-      "title": "HTTP Status Codes by Service",
+      "title": "JWT Token Validation Failures",
       "type": "timeseries"
     },
     {
@@ -465,7 +446,7 @@
             "axisPlacement": "auto",
             "barAlignment": 0,
             "drawStyle": "line",
-            "fillOpacity": 20,
+            "fillOpacity": 10,
             "gradientMode": "none",
             "hideFrom": {
               "legend": false,
@@ -473,7 +454,7 @@
               "viz": false
             },
             "lineInterpolation": "linear",
-            "lineWidth": 2,
+            "lineWidth": 1,
             "pointSize": 5,
             "scaleDistribution": {
               "type": "linear"
@@ -502,7 +483,7 @@
               }
             ]
           },
-          "unit": "bytes"
+          "unit": "short"
         },
         "overrides": []
       },
@@ -510,28 +491,33 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 17
+        "y": 16
       },
-      "id": 10,
+      "id": 7,
       "options": {
         "legend": {
-          "calcs": ["lastNotNull"],
-          "displayMode": "table",
+          "calcs": [],
+          "displayMode": "list",
           "placement": "bottom"
         },
         "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
+          "mode": "single",
+          "sort": "none"
         }
       },
       "targets": [
         {
-          "expr": "process_resident_memory_bytes{job=~\".*-service\"}",
-          "legendFormat": "{{job}} - Memory Usage",
+          "expr": "rate(credential_issuance_total[5m])",
+          "legendFormat": "{{service}} - Success",
           "refId": "A"
+        },
+        {
+          "expr": "rate(credential_issuance_failures_total[5m])",
+          "legendFormat": "{{service}} - Failures",
+          "refId": "B"
         }
       ],
-      "title": "Memory Usage by Service",
+      "title": "Credential Issuance Activity",
       "type": "timeseries"
     },
     {
@@ -549,7 +535,7 @@
             "axisPlacement": "auto",
             "barAlignment": 0,
             "drawStyle": "line",
-            "fillOpacity": 20,
+            "fillOpacity": 10,
             "gradientMode": "none",
             "hideFrom": {
               "legend": false,
@@ -557,7 +543,7 @@
               "viz": false
             },
             "lineInterpolation": "linear",
-            "lineWidth": 2,
+            "lineWidth": 1,
             "pointSize": 5,
             "scaleDistribution": {
               "type": "linear"
@@ -586,7 +572,7 @@
               }
             ]
           },
-          "unit": "percent"
+          "unit": "short"
         },
         "overrides": []
       },
@@ -594,28 +580,28 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 17
+        "y": 16
       },
-      "id": 12,
+      "id": 8,
       "options": {
         "legend": {
-          "calcs": ["lastNotNull"],
-          "displayMode": "table",
+          "calcs": [],
+          "displayMode": "list",
           "placement": "bottom"
         },
         "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
+          "mode": "single",
+          "sort": "none"
         }
       },
       "targets": [
         {
-          "expr": "rate(process_cpu_seconds_total{job=~\".*-service\"}[5m]) * 100",
-          "legendFormat": "{{job}} - CPU Usage",
+          "expr": "rate(security_events_total[5m])",
+          "legendFormat": "{{event_type}} - {{service}}",
           "refId": "A"
         }
       ],
-      "title": "CPU Usage by Service",
+      "title": "Security Events",
       "type": "timeseries"
     }
   ],
@@ -623,9 +609,9 @@
   "schemaVersion": 37,
   "style": "dark",
   "tags": [
-    "overview",
-    "services",
-    "did"
+    "security",
+    "did",
+    "identity"
   ],
   "templating": {
     "list": [
@@ -639,7 +625,7 @@
           "type": "prometheus",
           "uid": "prometheus"
         },
-        "definition": "label_values(up{job=~\".*-service\"}, job)",
+        "definition": "label_values(service)",
         "hide": 0,
         "includeAll": true,
         "label": "Service",
@@ -647,7 +633,7 @@
         "name": "service",
         "options": [],
         "query": {
-          "query": "label_values(up{job=~\".*-service\"}, job)",
+          "query": "label_values(service)",
           "refId": "StandardVariableQuery"
         },
         "refresh": 1,
@@ -664,8 +650,8 @@
   },
   "timepicker": {},
   "timezone": "",
-  "title": "DID Services Overview",
-  "uid": "did-services-overview",
-  "version": 2,
+  "title": "DID Security Metrics",
+  "uid": "did-security-metrics",
+  "version": 1,
   "weekStart": ""
 } 
