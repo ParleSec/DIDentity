@@ -5,9 +5,28 @@ datasources:
     type: prometheus
     access: proxy
     url: http://prometheus:9090
+    uid: prometheus
     isDefault: true
+    editable: true
+    jsonData:
+      httpMethod: POST
+      timeInterval: "30s"
+    version: 1
+
   - name: Jaeger
     type: jaeger
     access: proxy
     url: http://jaeger:16686
+    uid: jaeger
     editable: true
+    jsonData:
+      tracesToLogsV2:
+        datasourceUid: 'prometheus'
+        tags: ['job', 'instance', 'pod', 'namespace']
+        mappedTags: [{ key: 'service.name', value: 'service' }]
+        mapTagNamesEnabled: false
+        spanStartTimeShift: '1h'
+        spanEndTimeShift: '-1h'
+        filterByTraceID: false
+        filterBySpanID: false
+    version: 1

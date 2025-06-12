@@ -1,28 +1,80 @@
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
+  external_labels:
+    monitor: 'did-identity-monitor'
+
+rule_files:
+  - "rules/*.yml"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
 
 scrape_configs:
   - job_name: 'prometheus'
     static_configs:
       - targets: ['localhost:9090']
+    scrape_interval: 30s
+    metrics_path: '/metrics'
 
   - job_name: 'auth-service'
     metrics_path: '/metrics'
+    scrape_interval: 15s
     static_configs:
       - targets: ['auth-service:8000']
+    scrape_timeout: 10s
+    honor_labels: true
+    params:
+      'format': ['prometheus']
 
   - job_name: 'did-service'
     metrics_path: '/metrics'
+    scrape_interval: 15s
     static_configs:
       - targets: ['did-service:8000']
+    scrape_timeout: 10s
+    honor_labels: true
+    params:
+      'format': ['prometheus']
 
   - job_name: 'credential-service'
     metrics_path: '/metrics'
+    scrape_interval: 15s
     static_configs:
       - targets: ['credential-service:8000']
+    scrape_timeout: 10s
+    honor_labels: true
+    params:
+      'format': ['prometheus']
 
   - job_name: 'verification-service'
     metrics_path: '/metrics'
+    scrape_interval: 15s
     static_configs:
       - targets: ['verification-service:8000']
+    scrape_timeout: 10s
+    honor_labels: true
+    params:
+      'format': ['prometheus']
+
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+    scrape_interval: 30s
+
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+    scrape_interval: 30s
+
+  - job_name: 'vault'
+    metrics_path: '/v1/sys/metrics'
+    params:
+      format: ['prometheus']
+    static_configs:
+      - targets: ['vault:8200']
+    scrape_interval: 30s
+    bearer_token_file: '/etc/prometheus/vault-token'

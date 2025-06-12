@@ -1,0 +1,178 @@
+groups:
+  - name: did-services-health
+    rules:
+      - alert: ServiceDown
+        expr: up{job=~".*-service"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: "{{ $labels.job }}"
+        annotations:
+          summary: "DID Service {{ $labels.job }} is down"
+          description: "Service {{ $labels.job }} has been down for more than 1 minute."
+
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 0.5
+        for: 2m
+        labels:
+          severity: warning
+          service: "{{ $labels.job }}"
+        annotations:
+          summary: "High response time on {{ $labels.job }}"
+          description: "95th percentile response time is {{ $value }}s for service {{ $labels.job }}"
+
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status_code=~"5.."}[5m]) / rate(http_requests_total[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+          service: "{{ $labels.job }}"
+        annotations:
+          summary: "High error rate on {{ $labels.job }}"
+          description: "Error rate is {{ $value | humanizePercentage }} for service {{ $labels.job }}"
+
+      - alert: HighMemoryUsage
+        expr: process_resident_memory_bytes{job=~".*-service"} / (1024^3) > 1
+        for: 5m
+        labels:
+          severity: warning
+          service: "{{ $labels.job }}"
+        annotations:
+          summary: "High memory usage on {{ $labels.job }}"
+          description: "Memory usage is {{ $value | humanize }}GB for service {{ $labels.job }}"
+
+      - alert: HighCPUUsage
+        expr: rate(process_cpu_seconds_total{job=~".*-service"}[5m]) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+          service: "{{ $labels.job }}"
+        annotations:
+          summary: "High CPU usage on {{ $labels.job }}"
+          description: "CPU usage is {{ $value | humanizePercentage }} for service {{ $labels.job }}"
+
+  - name: did-security-alerts
+    rules:
+      - alert: AuthenticationFailureSpike
+        expr: rate(auth_failures_total[5m]) > 5
+        for: 1m
+        labels:
+          severity: critical
+          alert_type: security
+        annotations:
+          summary: "High authentication failure rate detected"
+          description: "Authentication failure rate is {{ $value }} failures/sec"
+
+      - alert: SuspiciousActivity
+        expr: rate(security_events_total{event_type="suspicious_activity"}[5m]) > 0
+        for: 0s
+        labels:
+          severity: warning
+          alert_type: security
+        annotations:
+          summary: "Suspicious activity detected"
+          description: "Suspicious activity events detected at {{ $value }} events/sec"
+
+      - alert: RateLimitExceeded
+        expr: rate(rate_limit_exceeded_total[5m]) > 10
+        for: 2m
+        labels:
+          severity: warning
+          alert_type: security
+        annotations:
+          summary: "High rate limit violations"
+          description: "Rate limit exceeded {{ $value }} times/sec"
+
+      - alert: JWTValidationFailures
+        expr: rate(jwt_token_validation_failures_total[5m]) > 2
+        for: 2m
+        labels:
+          severity: warning
+          alert_type: security
+        annotations:
+          summary: "High JWT validation failure rate"
+          description: "JWT validation failures at {{ $value }} failures/sec"
+
+      - alert: DIDVerificationFailures
+        expr: rate(did_verification_failures_total[5m]) > 1
+        for: 3m
+        labels:
+          severity: warning
+          alert_type: security
+        annotations:
+          summary: "DID verification failures detected"
+          description: "DID verification failing at {{ $value }} failures/sec"
+
+  - name: did-operational-alerts
+    rules:
+      - alert: CredentialIssuanceFailures
+        expr: rate(credential_issuance_failures_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          alert_type: operational
+        annotations:
+          summary: "Credential issuance failures detected"
+          description: "Credential issuance failing at {{ $value }} failures/sec"
+
+      - alert: LowSuccessRate
+        expr: (sum(rate(http_requests_total{status_code!~"5.."}[5m])) by (job) / sum(rate(http_requests_total[5m])) by (job)) < 0.95
+        for: 5m
+        labels:
+          severity: warning
+          service: "{{ $labels.job }}"
+        annotations:
+          summary: "Low success rate for {{ $labels.job }}"
+          description: "Success rate is {{ $value | humanizePercentage }} for service {{ $labels.job }}"
+
+      - alert: VaultUnavailable
+        expr: up{job="vault"} == 0
+        for: 30s
+        labels:
+          severity: critical
+          alert_type: infrastructure
+        annotations:
+          summary: "Vault is unavailable"
+          description: "Vault service is down - critical for DID operations"
+
+      - alert: DatabaseConnectionIssues
+        expr: rate(database_connection_errors_total[5m]) > 0
+        for: 2m
+        labels:
+          severity: warning
+          alert_type: infrastructure
+        annotations:
+          summary: "Database connection issues detected"
+          description: "Database connection errors at {{ $value }} errors/sec"
+
+  - name: did-compliance-alerts
+    rules:
+      - alert: UnauthorizedDataAccess
+        expr: rate(unauthorized_access_attempts_total[5m]) > 0
+        for: 0s
+        labels:
+          severity: critical
+          alert_type: compliance
+        annotations:
+          summary: "Unauthorized data access attempt"
+          description: "Unauthorized access attempts detected at {{ $value }} attempts/sec"
+
+      - alert: DataRetentionViolation
+        expr: data_retention_violations_total > 0
+        for: 0s
+        labels:
+          severity: warning
+          alert_type: compliance
+        annotations:
+          summary: "Data retention policy violation"
+          description: "Data retention violations detected: {{ $value }} violations"
+
+      - alert: AuditLogFailures
+        expr: rate(audit_log_failures_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+          alert_type: compliance
+        annotations:
+          summary: "Audit log failures detected"
+          description: "Audit logging failing at {{ $value }} failures/sec" 

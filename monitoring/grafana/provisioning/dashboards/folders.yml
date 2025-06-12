@@ -1,0 +1,6 @@
+apiVersion: 1
+
+folders:
+  - title: 'DID Services'
+    uid: 'did-services'
+    orgId: 1 
