@@ -148,12 +148,12 @@ MONITORING_TOOLS = {
         "name": "Grafana", 
         "url": "http://grafana:3000", 
         "port": 3000, 
-        "embed_path": "/d/didservices/dididentity-services?orgId=1&refresh=5s&kiosk=tv&theme=light",
+        "embed_path": "/d/did-services-overview/did-services-overview?orgId=1&refresh=5s&kiosk=tv&theme=light",
         "embed_alternatives": [
-            "/d-solo/didservices/dididentity-services?orgId=1&refresh=5s&kiosk=tv&theme=light&panelId=2",
-            "/d/didservices/dididentity-services?orgId=1&refresh=5s&kiosk",
-            "/d/didservices/dididentity-services?orgId=1&kiosk=tv",
-            "/d/didservices/dididentity-services?orgId=1"
+            "/d-solo/did-services-overview/did-services-overview?orgId=1&refresh=5s&kiosk=tv&theme=light&panelId=2",
+            "/d/did-services-overview/did-services-overview?orgId=1&refresh=5s&kiosk",
+            "/d/did-services-overview/did-services-overview?orgId=1&kiosk=tv",
+            "/d/did-services-overview/did-services-overview?orgId=1"
         ]
     },
     "prometheus": {"name": "Prometheus", "url": "http://prometheus:9090", "port": 9090, "embed_path": "/graph"},

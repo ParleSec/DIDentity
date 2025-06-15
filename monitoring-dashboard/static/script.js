@@ -203,7 +203,7 @@ class SecureMonitoring {
     showAuthenticatedGrafana() {
         const container = document.getElementById('grafana-iframe-container');
         if (container) {
-            const dashboardUrl = '/api/proxy/grafana/d/didservices/dididentity-services?orgId=1&refresh=5s&kiosk=tv&theme=light';
+            const dashboardUrl = '/api/proxy/grafana/d/did-services-overview/did-services-overview?orgId=1&refresh=5s&kiosk=tv&theme=dark';
             container.innerHTML = `
                 <div class="mb-2 flex justify-between items-center bg-green-50 border border-green-300 rounded p-2">
                     <span class="text-green-700 text-sm">
