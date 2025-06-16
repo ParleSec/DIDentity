@@ -155,6 +155,9 @@
                         <p class="text-sm {% if service.status == 'healthy' %}text-green-600{% else %}text-red-600{% endif %}">
                             Status: {{ service.status|title }}
                         </p>
+                        {% if service.uptime %}
+                        <p class="text-xs text-gray-500 mt-1">Uptime: {{ service.uptime }}</p>
+                        {% endif %}
                         {% if service.status == 'healthy' and service.details.database %}
                         <p class="text-xs text-gray-500 mt-1">Database: {{ service.details.database }}</p>
                         {% endif %}

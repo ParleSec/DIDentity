@@ -143,6 +143,12 @@ SERVICES = {
     "verification": {"name": "Verification Service", "url": "http://verification-service:8000", "port": 8003},
 }
 
+# Service uptime tracking
+SERVICE_UPTIME = {
+    service_key: {"last_healthy": None, "uptime_start": None, "total_uptime": 0}
+    for service_key in SERVICES.keys()
+}
+
 MONITORING_TOOLS = {
     "grafana": {
         "name": "Grafana", 
@@ -161,27 +167,55 @@ MONITORING_TOOLS = {
     "rabbitmq": {"name": "RabbitMQ", "url": "http://rabbitmq:15672", "port": 15672, "embed_path": "/"},
 }
 
+def format_uptime(uptime_seconds: float) -> str:
+    """Format uptime in human-readable format"""
+    if uptime_seconds < 60:
+        return f"{uptime_seconds:.0f}s"
+    elif uptime_seconds < 3600:
+        return f"{uptime_seconds/60:.1f}m"
+    elif uptime_seconds < 86400:
+        return f"{uptime_seconds/3600:.1f}h"
+    else:
+        return f"{uptime_seconds/86400:.1f}d"
+
 async def check_service_health(service_name: str, service_info: Dict) -> Dict:
     """Check if a service is healthy"""
+    current_time = time.time()
+    uptime_info = SERVICE_UPTIME[service_name]
+    
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             response = await client.get(f"{service_info['url']}/health")
             if response.status_code == 200:
                 data = response.json()
+                
+                # Update uptime tracking
+                if uptime_info["uptime_start"] is None:
+                    uptime_info["uptime_start"] = current_time
+                
+                uptime_info["last_healthy"] = current_time
+                current_uptime = current_time - uptime_info["uptime_start"]
+                
                 return {
                     "name": service_info["name"],
                     "status": "healthy",
                     "details": data,
-                    "port": service_info["port"]
+                    "port": service_info["port"],
+                    "uptime": format_uptime(current_uptime),
+                    "uptime_seconds": current_uptime
                 }
     except Exception as e:
+        # Service is unhealthy, reset uptime tracking
+        uptime_info["uptime_start"] = None
         pass
     
     return {
         "name": service_info["name"],
         "status": "unhealthy",
         "details": {"error": str(e) if 'e' in locals() else "Service unavailable"},
-        "port": service_info["port"]
+        "port": service_info["port"],
+        "uptime": "0s",
+        "uptime_seconds": 0
     }
 
 async def check_monitoring_tool_health(tool_name: str, tool_info: Dict) -> Dict:
@@ -341,6 +375,28 @@ async def monitoring_health():
         for name, info in MONITORING_TOOLS.items()
     ]
     return await asyncio.gather(*monitoring_health_tasks)
+
+@app.get("/api/services/uptime")
+async def services_uptime():
+    """Get service uptime statistics"""
+    uptime_stats = {}
+    for service_name, uptime_info in SERVICE_UPTIME.items():
+        if uptime_info["uptime_start"] is not None:
+            current_uptime = time.time() - uptime_info["uptime_start"]
+            uptime_stats[service_name] = {
+                "service": SERVICES[service_name]["name"],
+                "uptime": format_uptime(current_uptime),
+                "uptime_seconds": current_uptime,
+                "started_at": datetime.fromtimestamp(uptime_info["uptime_start"]).strftime("%Y-%m-%d %H:%M:%S")
+            }
+        else:
+            uptime_stats[service_name] = {
+                "service": SERVICES[service_name]["name"],
+                "uptime": "0s",
+                "uptime_seconds": 0,
+                "started_at": "Never"
+            }
+    return {"uptime_stats": uptime_stats}
 
 @app.get("/api/rabbitmq/stats")
 async def rabbitmq_stats():
