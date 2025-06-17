@@ -11,6 +11,9 @@ class EventBus:
     
     def __init__(self):
         self.host = os.environ.get("RABBITMQ_HOST", "rabbitmq")
+        self.port = int(os.environ.get("RABBITMQ_PORT", "5672"))
+        self.username = os.environ.get("RABBITMQ_USER", "admin")
+        self.password = os.environ.get("RABBITMQ_PASSWORD", "VaultSecureRMQ2024")
         self.connection = None
         self.channel = None
         self.exchange_name = "dididentity"
@@ -19,9 +22,12 @@ class EventBus:
     async def connect(self):
         """Connect to RabbitMQ."""
         try:
-            # Create connection parameters
+            # Create connection parameters with credentials
+            credentials = pika.PlainCredentials(self.username, self.password)
             parameters = pika.ConnectionParameters(
                 host=self.host,
+                port=self.port,
+                credentials=credentials,
                 heartbeat=600,
                 blocked_connection_timeout=300
             )
