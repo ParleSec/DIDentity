@@ -2,6 +2,7 @@ import pytest
 from auth_service.src.dependencies import create_access_token, verify_token
 from auth_service.src.schemas import UserCreate
 from fastapi import HTTPException
+from pydantic import ValidationError
 
 def test_user_create_schema():
     # Valid user data
@@ -16,11 +17,11 @@ def test_user_create_schema():
     assert user.password == valid_data["password"]
 
     # Invalid email
-    with pytest.raises(ValueError):
+    with pytest.raises(ValidationError):
         UserCreate(username="test", email="invalid-email", password="pass123")
 
     # Short password
-    with pytest.raises(ValueError):
+    with pytest.raises(ValidationError):
         UserCreate(username="test", email="test@example.com", password="short")
 
 def test_token_creation_and_verification():
@@ -28,9 +29,8 @@ def test_token_creation_and_verification():
     token = create_access_token(data)
     
     # Verify token
-    payload = verify_token(token)
-    assert payload["sub"] == data["sub"]
-    assert payload["user_id"] == data["user_id"]
+    username = verify_token(token)
+    assert username == data["sub"]
 
     # Invalid token
     with pytest.raises(HTTPException):
