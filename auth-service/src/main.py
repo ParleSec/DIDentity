@@ -4,18 +4,37 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.docs import get_swagger_ui_html, get_redoc_html
 from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
+from contextlib import asynccontextmanager
+import logging
+import os
+import json
+import asyncpg
 from .schemas import UserCreate, UserLogin, Token, TokenRefresh, TokenRevoke
 from .dependencies import get_db_pool, oauth2_scheme, verify_token, verify_refresh_token, pwd_context, logger, get_db_url
 from .dependencies import create_access_token, create_refresh_token, create_tokens, revoke_token
 from .messaging import event_bus
 from .telemetry import extract_context_from_request, create_span, add_span_attributes, mark_span_error
 from prometheus_fastapi_instrumentator import Instrumentator
-import os
-import json
-import asyncpg
 
 # Set service name for messaging
 os.environ["SERVICE_NAME"] = "auth-service"
+
+# Setup logging
+logger = logging.getLogger(__name__)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    logger.info("Starting up auth service...")
+    await event_bus.connect()
+    logger.info("Auth service startup complete")
+    
+    yield
+    
+    # Shutdown
+    logger.info("Shutting down auth service...")
+    await event_bus.close()
+    logger.info("Auth service shutdown complete")
 
 # Initialize FastAPI with enhanced metadata
 app = FastAPI(
@@ -33,7 +52,8 @@ app = FastAPI(
         }
     ],
     docs_url=None,
-    redoc_url=None
+    redoc_url=None,
+    lifespan=lifespan
 )
 
 # Add instrumentation
@@ -48,17 +68,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.on_event("startup")
-async def startup_event():
-    # Connect to RabbitMQ
-    await event_bus.connect()
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    # Close RabbitMQ connection
-    await event_bus.close()
-
-# Custom OpenAPI endpoints with SDK download options
 @app.get("/docs", include_in_schema=False)
 async def custom_swagger_ui_html():
     return get_swagger_ui_html(
@@ -77,12 +86,10 @@ async def redoc_html():
         redoc_js_url="https://cdn.jsdelivr.net/npm/redoc@next/bundles/redoc.standalone.js",
     )
 
-# Export OpenAPI schema
 @app.get("/openapi.json", include_in_schema=False)
 async def get_openapi_schema():
     return JSONResponse(content=app.openapi())
 
-# Endpoint to generate client SDKs
 @app.get("/sdk/{language}", tags=["sdk"])
 async def generate_sdk(language: str):
     """

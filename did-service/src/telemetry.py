@@ -14,6 +14,11 @@ logger = logging.getLogger(__name__)
 # Initialize tracer
 def init_tracer():
     """Initialize OpenTelemetry tracer."""
+    # Check if OpenTelemetry is disabled (e.g., during tests)
+    if os.environ.get("OTEL_SDK_DISABLED", "").lower() == "true":
+        logger.info("OpenTelemetry is disabled via OTEL_SDK_DISABLED environment variable")
+        return None
+    
     try:
         # Service name is required for most exporters
         resource = Resource(attributes={

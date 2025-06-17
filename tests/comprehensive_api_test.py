@@ -20,7 +20,7 @@ import json
 import time
 import uuid
 from urllib.parse import quote
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Any
 import sys
 
@@ -771,8 +771,8 @@ class DIDentityAPITester:
         
         if primary_did:
             # Test different credential types
-            current_time = datetime.utcnow().isoformat() + 'Z'
-            future_time = (datetime.utcnow() + timedelta(days=365)).isoformat() + 'Z'
+            current_time = datetime.now(timezone.utc).isoformat() + 'Z'
+            future_time = (datetime.now(timezone.utc) + timedelta(days=365)).isoformat() + 'Z'
             
             credential_test_cases = [
                 ('Education', {

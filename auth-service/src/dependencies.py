@@ -5,7 +5,7 @@ import uuid
 import sys
 from fastapi.security import OAuth2PasswordBearer
 from passlib.context import CryptContext
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from jose import JWTError, jwt
 from typing import Optional, Dict, List
 from fastapi import Depends, HTTPException, status
@@ -142,16 +142,16 @@ async def get_db_pool():
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=get_token_expire_minutes())
+        expire = datetime.now(timezone.utc) + timedelta(minutes=get_token_expire_minutes())
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, get_jwt_secret_key(), algorithm=get_jwt_algorithm())
     return encoded_jwt
 
 def create_refresh_token(data: dict):
     to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(days=get_refresh_token_expire_days())
+    expire = datetime.now(timezone.utc) + timedelta(days=get_refresh_token_expire_days())
     to_encode.update({"exp": expire, "type": "refresh"})
     encoded_jwt = jwt.encode(to_encode, get_jwt_secret_key(), algorithm=get_jwt_algorithm())
     return encoded_jwt
@@ -216,7 +216,7 @@ async def health_check():
     """Comprehensive health check including Vault status"""
     health_status = {
         "status": "healthy",
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "components": {}
     }
     

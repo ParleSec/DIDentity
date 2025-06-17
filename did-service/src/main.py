@@ -1,19 +1,44 @@
-from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, Request
+from fastapi import FastAPI, Depends, HTTPException, status, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.openapi.docs import get_swagger_ui_html, get_redoc_html
 from fastapi.responses import JSONResponse
-from .schemas import DIDCreate, DIDDocument, VerificationMethod, DIDMethod, DIDResolution, DIDResolutionMetadata, DIDDocumentMetadata
-from .dependencies import get_db_pool, logger
+from fastapi.openapi.docs import get_swagger_ui_html, get_redoc_html
+from contextlib import asynccontextmanager
+from .dependencies import get_db_pool
+from .schemas import (
+    DIDCreate, DIDDocument, DIDResolution, DIDMethod,
+    VerificationMethod, DIDResolutionMetadata, DIDDocumentMetadata
+)
 from .messaging import event_bus
-from .telemetry import extract_context_from_request, create_span, add_span_attributes, mark_span_error
-from prometheus_fastapi_instrumentator import Instrumentator
+from .telemetry import create_span, extract_context_from_request, add_span_attributes, mark_span_error
+import logging
 import json
-import os
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
+import os
+from prometheus_fastapi_instrumentator import Instrumentator
 
 # Set service name for messaging
 os.environ["SERVICE_NAME"] = "did-service"
+
+# Setup logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    logger.info("Starting up DID service...")
+    await event_bus.connect()
+    # Subscribe to user.created events
+    await event_bus.subscribe("user.created", handle_user_created)
+    logger.info("DID service startup complete")
+    
+    yield
+    
+    # Shutdown
+    logger.info("Shutting down DID service...")
+    await event_bus.close()
+    logger.info("DID service shutdown complete")
 
 # Initialize FastAPI with enhanced metadata
 app = FastAPI(
@@ -35,7 +60,8 @@ app = FastAPI(
         }
     ],
     docs_url=None,
-    redoc_url=None
+    redoc_url=None,
+    lifespan=lifespan
 )
 
 # Add instrumentation
@@ -49,19 +75,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-@app.on_event("startup")
-async def startup_event():
-    # Connect to RabbitMQ
-    await event_bus.connect()
-    
-    # Subscribe to user.created events
-    await event_bus.subscribe("user.created", handle_user_created)
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    # Close RabbitMQ connection
-    await event_bus.close()
 
 # Custom OpenAPI endpoints with SDK download options
 @app.get("/docs", include_in_schema=False)
@@ -110,7 +123,7 @@ async def generate_sdk(language: str):
 
 def generate_did_document(did: str, method: DIDMethod, controller: str = None):
     """Generate a DID document based on method and parameters"""
-    now = datetime.utcnow().isoformat() + "Z"
+    now = datetime.now(timezone.utc).isoformat() + "Z"
     controller = controller or did
     
     # Create different verification methods based on DID method
@@ -168,7 +181,7 @@ def generate_did_document(did: str, method: DIDMethod, controller: str = None):
     # Resolution metadata
     resolution_metadata = DIDResolutionMetadata(
         contentType="application/did+json",
-        retrieved=now
+        retrieved=datetime.now(timezone.utc).isoformat() + "Z"
     )
     
     # Document metadata
@@ -298,7 +311,7 @@ async def resolve_did(did: str, request: Request, pool=Depends(get_db_pool)):
                     
                     resolution_metadata = DIDResolutionMetadata(
                         contentType="application/did+json",
-                        retrieved=datetime.utcnow().isoformat() + "Z",
+                        retrieved=datetime.now(timezone.utc).isoformat() + "Z",
                         error=error_msg
                     )
                     
@@ -317,7 +330,7 @@ async def resolve_did(did: str, request: Request, pool=Depends(get_db_pool)):
                 # Create resolution metadata
                 resolution_metadata = DIDResolutionMetadata(
                     contentType="application/did+json",
-                    retrieved=datetime.utcnow().isoformat() + "Z"
+                    retrieved=datetime.now(timezone.utc).isoformat() + "Z"
                 )
                 
                 # Create document metadata

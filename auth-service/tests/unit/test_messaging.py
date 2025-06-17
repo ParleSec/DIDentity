@@ -68,7 +68,7 @@ def test_publish_with_stubbed_channel(monkeypatch):
 
     # Now publish an event
     import asyncio
-    asyncio.get_event_loop().run_until_complete(
+    asyncio.run(
         bus.publish("user.created", {"id": "123"})
     )
 

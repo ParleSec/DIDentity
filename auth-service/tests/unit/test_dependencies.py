@@ -82,7 +82,7 @@ def test_verify_refresh_token_type_validation():
 def async_run(awaitable):
     """Utility to synchronously run a coroutine inside pytest."""
     import asyncio
-    return asyncio.get_event_loop().run_until_complete(awaitable)
+    return asyncio.run(awaitable)
 
 
 def test_revoke_and_blacklist(monkeypatch):

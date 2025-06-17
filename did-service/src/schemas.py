@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, validator, HttpUrl
+from pydantic import BaseModel, Field, field_validator, HttpUrl, ConfigDict
 from typing import Dict, List, Optional, Union, Any
 from enum import Enum
 import re
@@ -15,9 +15,10 @@ class DIDCreate(BaseModel):
     identifier: str = Field(..., min_length=1, max_length=256)
     controller: Optional[str] = Field(None, description="The controller of the DID")
     
-    @validator('identifier')
-    def validate_identifier(cls, v, values):
-        method = values.get('method')
+    @field_validator('identifier')
+    @classmethod
+    def validate_identifier(cls, v, info):
+        method = info.data.get('method') if info.data else None
         if method == DIDMethod.KEY:
             # Base58 encoded for key method
             if not re.match(r'^[1-9A-HJ-NP-Za-km-z]+$', v):
@@ -48,6 +49,8 @@ class ServiceEndpoint(BaseModel):
     description: Optional[str] = None
 
 class DIDDocument(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    
     id: str
     context: Union[str, List[str]] = Field("https://www.w3.org/ns/did/v1", alias="@context")
     controller: Optional[str] = None
@@ -58,9 +61,6 @@ class DIDDocument(BaseModel):
     capabilityInvocation: Optional[List[Union[str, VerificationMethod]]] = None
     capabilityDelegation: Optional[List[Union[str, VerificationMethod]]] = None
     service: Optional[List[ServiceEndpoint]] = None
-
-    class Config:
-        allow_population_by_field_name = True
 
 class DIDResolutionMetadata(BaseModel):
     contentType: str = "application/did+json"
