@@ -61,6 +61,7 @@ app = FastAPI(
     ],
     docs_url=None,
     redoc_url=None,
+    openapi_url=None,
     lifespan=lifespan
 )
 
@@ -80,7 +81,7 @@ app.add_middleware(
 @app.get("/docs", include_in_schema=False)
 async def custom_swagger_ui_html():
     return get_swagger_ui_html(
-        openapi_url=app.openapi_url,
+        openapi_url="/openapi.json",
         title=app.title + " - Swagger UI",
         oauth2_redirect_url=app.swagger_ui_oauth2_redirect_url,
         swagger_js_url="https://cdn.jsdelivr.net/npm/swagger-ui-dist@3/swagger-ui-bundle.js",
@@ -90,7 +91,7 @@ async def custom_swagger_ui_html():
 @app.get("/redoc", include_in_schema=False)
 async def redoc_html():
     return get_redoc_html(
-        openapi_url=app.openapi_url,
+        openapi_url="/openapi.json",
         title=app.title + " - ReDoc",
         redoc_js_url="https://cdn.jsdelivr.net/npm/redoc@next/bundles/redoc.standalone.js",
     )
@@ -98,7 +99,10 @@ async def redoc_html():
 # Export OpenAPI schema
 @app.get("/openapi.json", include_in_schema=False)
 async def get_openapi_schema():
-    return JSONResponse(content=app.openapi())
+    openapi_schema = app.openapi()
+    # Force OpenAPI 3.0.3 for Swagger UI compatibility
+    openapi_schema["openapi"] = "3.0.3"
+    return JSONResponse(content=openapi_schema)
 
 # Endpoint to generate client SDKs
 @app.get("/sdk/{language}", tags=["sdk"])
