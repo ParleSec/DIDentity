@@ -58,7 +58,29 @@ services:
     networks:
       - app-network
 
-  # Database with Vault-managed secrets
+  # Redis for caching and session management
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru --appendonly yes
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  # Database with Vault-managed secrets and performance optimizations
   db:
     image: postgres:17
     depends_on:
@@ -70,14 +92,36 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_DB=decentralized_id
       - POSTGRES_PASSWORD=VaultSecureDB2024  # Fixed password matching Vault
+      - POSTGRES_SHARED_PRELOAD_LIBRARIES=pg_stat_statements
+      - POSTGRES_INITDB_ARGS=--data-checksums
     volumes:
       - ./init.sql:/docker-entrypoint-initdb.d/99-init.sql
       - db-data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
+    command: >
+      postgres
+      -c shared_buffers=256MB
+      -c effective_cache_size=1GB
+      -c work_mem=16MB
+      -c maintenance_work_mem=64MB
+      -c max_connections=200
+      -c random_page_cost=1.1
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=16MB
+      -c default_statistics_target=100
+      -c log_min_duration_statement=1000
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '2'
+        reservations:
+          memory: 1G
+          cpus: '1'
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
+      interval: 10s
       timeout: 5s
       retries: 10
       start_period: 30s
@@ -133,12 +177,15 @@ services:
       - VAULT_ADDR=http://vault:8200
       - VAULT_TOKEN=root
       - RABBITMQ_HOST=rabbitmq
+      - REDIS_URL=redis://redis:6379
       - SERVICE_NAME=auth-service
       - OTLP_ENDPOINT=jaeger:4317
     volumes:
       - ./vault:/app/vault:ro
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       vault:
         condition: service_healthy
@@ -148,11 +195,19 @@ services:
         condition: service_started
       vault-init:
         condition: service_completed_successfully
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '2'
+        reservations:
+          memory: 512M
+          cpus: '1'
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      interval: 15s
+      timeout: 10s
+      retries: 3
       start_period: 30s
     networks:
       - app-network
@@ -166,12 +221,15 @@ services:
       - VAULT_ADDR=http://vault:8200
       - VAULT_TOKEN=root
       - RABBITMQ_HOST=rabbitmq
+      - REDIS_URL=redis://redis:6379
       - SERVICE_NAME=did-service
       - OTLP_ENDPOINT=jaeger:4317
     volumes:
       - ./vault:/app/vault:ro
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       vault:
         condition: service_healthy
@@ -181,11 +239,19 @@ services:
         condition: service_started
       vault-init:
         condition: service_completed_successfully
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+          cpus: '1.5'
+        reservations:
+          memory: 384M
+          cpus: '0.75'
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      interval: 15s
+      timeout: 10s
+      retries: 3
       start_period: 30s
     networks:
       - app-network
@@ -199,12 +265,15 @@ services:
       - VAULT_ADDR=http://vault:8200
       - VAULT_TOKEN=root
       - RABBITMQ_HOST=rabbitmq
+      - REDIS_URL=redis://redis:6379
       - SERVICE_NAME=credential-service
       - OTLP_ENDPOINT=jaeger:4317
     volumes:
       - ./vault:/app/vault:ro
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       vault:
         condition: service_healthy
@@ -214,11 +283,19 @@ services:
         condition: service_started
       vault-init:
         condition: service_completed_successfully
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+          cpus: '1.5'
+        reservations:
+          memory: 384M
+          cpus: '0.75'
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      interval: 15s
+      timeout: 10s
+      retries: 3
       start_period: 30s
     networks:
       - app-network
@@ -232,12 +309,15 @@ services:
       - VAULT_ADDR=http://vault:8200
       - VAULT_TOKEN=root
       - RABBITMQ_HOST=rabbitmq
+      - REDIS_URL=redis://redis:6379
       - SERVICE_NAME=verification-service
       - OTLP_ENDPOINT=jaeger:4317
     volumes:
       - ./vault:/app/vault:ro
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       vault:
         condition: service_healthy
@@ -247,11 +327,19 @@ services:
         condition: service_started
       vault-init:
         condition: service_completed_successfully
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1'
+        reservations:
+          memory: 256M
+          cpus: '0.5'
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      interval: 15s
+      timeout: 10s
+      retries: 3
       start_period: 30s
     networks:
       - app-network
@@ -331,6 +419,7 @@ volumes:
   db-data:
   vault-data:
   vault-configs:  # Shared volume for Vault configuration files
+  redis-data:
 
 networks:
   app-network:

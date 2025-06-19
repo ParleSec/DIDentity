@@ -180,11 +180,12 @@ async def signup(user: UserCreate, background_tasks: BackgroundTasks, request: R
             )
 
 @app.post("/login", response_model=Token, tags=["auth"])
-async def login(form_data: OAuth2PasswordRequestForm = Depends(), pool=Depends(get_db_pool)):
+async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     """
     Authenticate a user and return an access token.
     """
     try:
+        pool = await get_db_pool()
         async with pool.acquire() as conn:
             # Find user
             user = await conn.fetchrow(
@@ -283,13 +284,30 @@ async def health_check():
     Health check endpoint that verifies the service and database connection.
     """
     try:
-        # Test database connection
-        db_url = get_db_url()
-        pool = await asyncpg.create_pool(db_url, min_size=1, max_size=1, command_timeout=5)
+        # Use existing pool instead of creating new connection
+        pool = await get_db_pool()
         async with pool.acquire() as conn:
             await conn.fetchval("SELECT 1")
-        await pool.close()
-        return {"status": "healthy", "database": "connected"}
+        
+        # Test Redis if available
+        redis_status = "not_configured"
+        try:
+            redis = await get_redis()
+            if redis:
+                await redis.ping()
+                redis_status = "connected"
+        except Exception:
+            redis_status = "error"
+            
+        return {
+            "status": "healthy", 
+            "database": "connected",
+            "redis": redis_status,
+            "pool_stats": {
+                "size": pool.get_size(),
+                "idle": pool.get_idle_size()
+            }
+        }
     except Exception as e:
         logger.error(f"Health check failed: {str(e)}")
         return {"status": "unhealthy", "error": str(e)}

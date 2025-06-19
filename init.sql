@@ -39,4 +39,36 @@ CREATE TABLE IF NOT EXISTS verifications (
     verifier VARCHAR(255) NOT NULL,
     status VARCHAR(50) NOT NULL,
     verification_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-); 
+);
+
+-- Performance Optimization: Add critical indexes
+-- Users table indexes
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_users_username ON users(username);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_users_created_at ON users(created_at);
+
+-- DIDs table indexes
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_dids_did ON dids(did);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_dids_user_id ON dids(user_id);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_dids_created_at ON dids(created_at);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_dids_document_gin ON dids USING gin(document);
+
+-- Credentials table indexes
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_credentials_credential_id ON credentials(credential_id);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_credentials_issuer ON credentials(issuer);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_credentials_holder ON credentials(holder);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_credentials_type ON credentials(type);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_credentials_revoked ON credentials(revoked) WHERE revoked = false;
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_credentials_created_at ON credentials(created_at);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_credentials_credential_gin ON credentials USING gin(credential);
+
+-- Verifications table indexes
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_verifications_verification_id ON verifications(verification_id);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_verifications_credential_id ON verifications(credential_id);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_verifications_verifier ON verifications(verifier);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_verifications_status ON verifications(status);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_verifications_time ON verifications(verification_time);
+
+-- Composite indexes for common query patterns
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_credentials_holder_type_active ON credentials(holder, type) WHERE revoked = false;
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_verifications_credential_status ON verifications(credential_id, status); 

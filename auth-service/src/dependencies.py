@@ -115,22 +115,68 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 # This is a simple implementation - for production, use a persistent store
 revoked_tokens = set()
 
-# Database connection
+# Global connection pool (reuse across requests)
+_db_pool = None
+_redis_client = None
+
 async def get_db_pool():
-    try:
-        pool = await asyncpg.create_pool(
-            get_db_url(),
-            min_size=5,
-            max_size=20,
-            command_timeout=60
-        )
-        if not pool:
-            raise HTTPException(status_code=500, detail="Failed to create database pool")
+    """Get or create database connection pool"""
+    global _db_pool
+    if _db_pool is None:
         try:
-            yield pool
-        finally:
-            if pool:
-                await pool.close()
+            _db_pool = await asyncpg.create_pool(
+                get_db_url(),
+                min_size=10,  # Increased minimum connections
+                max_size=50,  # Increased maximum connections
+                command_timeout=30,  # Reduced timeout
+                server_settings={
+                    'application_name': 'auth_service',
+                    'tcp_keepalives_idle': '600',
+                    'tcp_keepalives_interval': '30',
+                    'tcp_keepalives_count': '3',
+                },
+                max_inactive_connection_lifetime=300  # 5 minutes
+            )
+            logger.info(f"Database pool created: min=10, max=50")
+        except Exception as e:
+            logger.error(f"Failed to create database pool: {e}")
+            raise HTTPException(status_code=500, detail="Database connection failed")
+    
+    return _db_pool
+
+async def get_redis():
+    """Get or create Redis connection"""
+    global _redis_client
+    if _redis_client is None:
+        try:
+            import aioredis
+            redis_url = os.environ.get('REDIS_URL', 'redis://redis:6379')
+            _redis_client = aioredis.from_url(
+                redis_url,
+                max_connections=20,
+                retry_on_timeout=True,
+                socket_keepalive=True,
+                health_check_interval=30
+            )
+            # Test connection
+            await _redis_client.ping()
+            logger.info("Redis connection established")
+        except Exception as e:
+            logger.warning(f"Redis connection failed: {e}")
+            _redis_client = None
+    
+    return _redis_client
+
+# Database connection with pool reuse
+async def get_db_connection():
+    """Get database connection from pool"""
+    try:
+        pool = await get_db_pool()
+        if not pool:
+            raise HTTPException(status_code=500, detail="Database pool not available")
+        
+        async with pool.acquire() as conn:
+            yield conn
     except asyncpg.InvalidPasswordError:
         logger.error("Database authentication failed")
         raise HTTPException(status_code=500, detail="Database authentication failed")

@@ -58,15 +58,54 @@ def get_db_url():
         # Fallback to environment variable or default
         return os.environ.get('DATABASE_URL', 'postgresql://postgres:VaultSecureDB2024@db:5432/decentralized_id')
 
+# Global connection pool (reuse across requests)
+_db_pool = None
+
+async def get_db_pool():
+    """Get or create database connection pool"""
+    global _db_pool
+    if _db_pool is None:
+        try:
+            _db_pool = await asyncpg.create_pool(
+                get_db_url(),
+                min_size=10,
+                max_size=50,
+                command_timeout=30,
+                server_settings={
+                    'application_name': 'credential_service',
+                    'tcp_keepalives_idle': '600',
+                    'tcp_keepalives_interval': '30',
+                    'tcp_keepalives_count': '3',
+                },
+                max_inactive_connection_lifetime=300
+            )
+            logger.info(f"Database pool created: min=10, max=50")
+        except Exception as e:
+            logger.error(f"Failed to create database pool: {e}")
+            raise HTTPException(status_code=500, detail="Database connection failed")
+    
+    return _db_pool
+
 # Database connection
-async def get_db_pool() -> AsyncGenerator[asyncpg.Pool, None]:
+async def get_db_connection() -> AsyncGenerator[asyncpg.Connection, None]:
     try:
-        pool = await asyncpg.create_pool(
-            get_db_url(),
-            min_size=5,
-            max_size=20,
-            command_timeout=60
-        )
+        pool = await get_db_pool()
+        if not pool:
+            raise HTTPException(status_code=500, detail="Database pool not available")
+        
+        async with pool.acquire() as conn:
+            yield conn
+    except asyncpg.InvalidPasswordError:
+        logger.error("Database authentication failed")
+        raise HTTPException(status_code=500, detail="Database authentication failed")
+    except Exception as e:
+        logger.error(f"Database connection error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Database connection error")
+
+# Legacy function for backward compatibility
+async def get_db_pool_legacy() -> AsyncGenerator[asyncpg.Pool, None]:
+    try:
+        pool = await get_db_pool()
         if not pool:
             raise HTTPException(status_code=500, detail="Failed to create database pool")
         try:
