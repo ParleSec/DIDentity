@@ -149,9 +149,9 @@ async def get_redis():
     global _redis_client
     if _redis_client is None:
         try:
-            import aioredis
+            import redis.asyncio as redis
             redis_url = os.environ.get('REDIS_URL', 'redis://redis:6379')
-            _redis_client = aioredis.from_url(
+            _redis_client = redis.from_url(
                 redis_url,
                 max_connections=20,
                 retry_on_timeout=True,

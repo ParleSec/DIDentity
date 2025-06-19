@@ -10,7 +10,7 @@ import os
 import json
 import asyncpg
 from .schemas import UserCreate, UserLogin, Token, TokenRefresh, TokenRevoke
-from .dependencies import get_db_pool, oauth2_scheme, verify_token, verify_refresh_token, pwd_context, logger, get_db_url
+from .dependencies import get_db_pool, oauth2_scheme, verify_token, verify_refresh_token, pwd_context, logger, get_db_url, get_redis
 from .dependencies import create_access_token, create_refresh_token, create_tokens, revoke_token
 from .messaging import event_bus
 from .telemetry import extract_context_from_request, create_span, add_span_attributes, mark_span_error
