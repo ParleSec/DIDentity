@@ -2,21 +2,7 @@
 
 [![Microservices](https://img.shields.io/badge/Architecture-Microservices-blue?style=for-the-badge&logo=docker)](https://docker.com/) [![Python](https://img.shields.io/badge/Backend-Python-blue?style=for-the-badge&logo=python)](https://www.python.org/) [![Infrastructure](https://img.shields.io/badge/Infrastructure-Docker%20%7C%20Vault%20%7C%20RabbitMQ-purple?style=for-the-badge&logo=docker)](https://docker.com/) [![Security](https://img.shields.io/badge/Security-Vault%20Secured-green?style=for-the-badge&logo=vault)](https://www.vaultproject.io/) [![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 
-**DIDentity** is a comprehensive decentralized identity platform based on microservices architecture, implementing DIDs (Decentralized Identifiers), Verifiable Credentials, and secure authentication. Built with enterprise-grade security and scalability in mind, DIDentity provides a complete solution for managing digital identity in a decentralized environment with **HashiCorp Vault integration** and **advanced monitoring capabilities**.
-
-## 🚀 What's New
-
-### Enhanced Monitoring Dashboard
-- **Sequential Workflow Testing**: Real-time, step-by-step DIDentity workflow execution with visual progress tracking
-- **Comprehensive Service Monitoring**: Detailed health checks and performance metrics for all microservices
-- **Secure Authentication System**: Session-based authentication for monitoring tools with zero credential exposure
-- **Interactive Testing Interface**: One-click end-to-end workflow validation with detailed results
-
-### Enterprise Security with Vault
-- **Zero Hardcoded Secrets**: Complete elimination of hardcoded credentials using HashiCorp Vault
-- **Automatic Secret Management**: Dynamic generation and rotation of all service credentials
-- **Audit Trail**: Complete logging of all secret access and modifications
-- **Secuirity-Oriented**: Enterprise-grade secret management with fallback mechanisms
+**DIDentity** is a comprehensive decentralized identity platform based on microservices architecture, implementing DIDs (Decentralized Identifiers), Verifiable Credentials, and secure authentication. Built with security and scalability in mind, DIDentity provides a complete solution for managing digital identity in a decentralized environment with **HashiCorp Vault integration**, **advanced monitoring capabilities**, and **performance optimization**.
 
 ## Purpose & Motivation
 
@@ -28,6 +14,7 @@ Modern digital identity requires secure, user-controlled, and interoperable solu
 - Offer a scalable, microservices-based architecture with comprehensive monitoring
 - Create an extensible platform for decentralized identity use cases
 - Demonstrate best practices for secret management and system observability
+- Provide production-focused performance optimization strategies
 
 ## Quick Installation
 
@@ -68,6 +55,49 @@ Modern digital identity requires secure, user-controlled, and interoperable solu
    - **🔍 Jaeger UI**: http://localhost:16686 (Distributed tracing)
 
 ## 🎯 Key Features
+
+### 🗄️ Optimized Database Layer
+
+The project features a **high-performance PostgreSQL setup** with comprehensive optimizations:
+
+#### **PostgreSQL 17 Performance Configuration**
+- **Memory Optimization**: 256MB shared buffers, 1GB effective cache size, 16MB work memory
+- **Connection Management**: Up to 200 max connections with proper pooling
+- **Write Optimization**: Optimized WAL buffers (16MB) and checkpoint settings
+- **Query Performance**: Enhanced statistics collection and query logging
+
+#### **Comprehensive Indexing Strategy**
+- **Primary Key Indexes**: Fast lookups for all entity tables
+- **Unique Constraint Indexes**: Email, username, DID, and credential ID uniqueness
+- **Query Pattern Indexes**: Optimized for common access patterns
+- **JSON Indexes**: GIN indexes for efficient JSONB operations on DID documents and credentials
+- **Composite Indexes**: Multi-column indexes for complex query patterns
+- **Partial Indexes**: Filtered indexes for active (non-revoked) credentials
+
+#### **Critical Database Indexes**
+```sql
+-- User management indexes
+CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_users_username ON users(username);
+
+-- DID resolution indexes  
+CREATE INDEX idx_dids_did ON dids(did);
+CREATE INDEX idx_dids_document_gin ON dids USING gin(document);
+
+-- Credential management indexes
+CREATE INDEX idx_credentials_holder ON credentials(holder);
+CREATE INDEX idx_credentials_credential_gin ON credentials USING gin(credential);
+CREATE INDEX idx_credentials_revoked ON credentials(revoked) WHERE revoked = false;
+
+-- Composite indexes for complex queries
+CREATE INDEX idx_credentials_holder_type_active ON credentials(holder, type) WHERE revoked = false;
+```
+
+#### **Redis Caching Integration**
+- **Session Management**: Persistent user sessions with automatic expiration
+- **Query Caching**: Intelligent caching of frequently accessed data
+- **Memory Management**: 512MB limit with LRU eviction policy
+- **Persistence**: Append-only file (AOF) for data durability
 
 ### 🖥️ Enhanced Monitoring Dashboard
 
@@ -125,15 +155,6 @@ kv/
 └── services/api_keys        # Service-specific API keys for inter-service communication
 ```
 
-#### **Security Benefits**
-
-1. **No Hardcoded Secrets**: All credentials dynamically retrieved from Vault
-2. **Centralized Management**: Single source of truth for all secrets
-3. **Automatic Generation**: Secure random password generation with cryptographic strength
-4. **Access Control**: Token-based authentication to Vault with proper scoping
-5. **Audit Trail**: Complete logging of secret access and modifications
-6. **Restart Resilience**: Fixed passwords ensure consistent operation across container restarts
-
 ### 🏗️ Service Architecture
 
 #### **Microservices Implementation**
@@ -154,6 +175,17 @@ DIDentity uses a microservices architecture providing:
 - **Credential Service (Port 8002)**: Credential issuance, credential management, VC standards
 - **Verification Service (Port 8003)**: Credential verification, status checking, trust validation
 
+#### **Resource Allocation & Performance**
+
+Each service is configured with optimized resource limits:
+
+- **Auth Service**: 1GB RAM, 2 CPU cores (high authentication load)
+- **DID Service**: 768MB RAM, 1.5 CPU cores (moderate processing)
+- **Credential Service**: 768MB RAM, 1.5 CPU cores (credential processing)
+- **Verification Service**: 768MB RAM, 1.5 CPU cores (verification logic)
+- **Database**: 2GB RAM, 2 CPU cores (intensive data operations)
+- **Redis**: 512MB RAM, 0.5 CPU cores (caching layer)
+
 ### 📊 Monitoring and Observability
 
 - **Enhanced Dashboard**: Unified monitoring interface with real-time workflow testing
@@ -162,6 +194,21 @@ DIDentity uses a microservices architecture providing:
 - **Visualization** with Grafana dashboards showing DIDentity service metrics
 - **Log Aggregation** across all services with centralized logging
 - **Health Monitoring** with Vault status integration and service dependency tracking
+
+### 🚀 Performance Optimization
+
+#### **Database Performance Features**
+- **PostgreSQL 17**: Latest version with performance improvements
+- **Comprehensive Indexing**: 15+ indexes covering all query patterns
+- **Memory Optimization**: Tuned for high-performance workloads
+- **Connection Pooling**: Efficient database connection management
+- **Query Optimization**: Enhanced statistics and query planning
+
+#### **Infrastructure Performance**
+- **Redis Caching**: High-speed in-memory data storage
+- **Resource Limits**: Proper CPU and memory allocation
+- **Health Checks**: Optimized health check intervals
+- **Container Restart Policies**: Automatic recovery from failures
 
 ## 🧪 Interactive Workflow Testing
 
@@ -176,27 +223,33 @@ Click the "Test Complete DIDentity Workflow" button to execute:
 3. **Credential Issuance** - Issues verifiable credential for test user  
 4. **Credential Verification** - Validates credential authenticity
 
-### **Features**
+### **Demo Capabilities**
 
-- **Real-time Progress**: Visual step-by-step execution with timing
-- **Interactive Controls**: Start, cancel, and retry with one click
-- **Detailed Results**: Comprehensive success/failure reporting
-- **Error Handling**: Detailed troubleshooting guidance for failures
-- **Professional UI**: Modern interface with animations and status indicators
+The project includes multiple demonstration options:
 
-### **Sample Test Results**
+#### **Interactive Demo** (`interactive_demo.py`)
+- Real-time workflow demonstration with user interaction
+- Step-by-step process explanation
+- Error handling and troubleshooting
+- Performance metrics display
 
-```json
-{
-  "status": "success",
-  "results": {
-    "user": "testuser_1749213675",
-    "did": "did:DIDMethod.KEY:ZXGg25NWuhF6qKcx",
-    "credential": "cred:94055362-64ea-45bc-a224-73b451a2aeab",
-    "verification": "valid",
-    "totalTime": "4s"
-  }
-}
+#### **Automated Demo** (`demo.py`)
+- Automated end-to-end workflow execution
+- Comprehensive output logging
+- Integration testing validation
+- Performance benchmarking
+
+### **Usage Examples**
+
+```bash
+# Run interactive demo
+python interactive_demo.py
+
+# Run automated demo
+python demo.py
+
+# Run load testing
+python load_tester.py --concurrent-users 10 --duration 60
 ```
 
 ## 🔒 Vault Secret Management
@@ -371,13 +424,18 @@ All service credentials are managed by Vault:
 ```
 DIDentity/
 ├── auth-service/             # Authentication service
-│   └── src/                  # Auth service source code with Vault integration
+│   ├── src/                  # Auth service source code with Vault integration
+│   ├── tests/                # Unit tests for auth service
+│   └── Dockerfile            # Container configuration
 ├── did-service/              # DID management service  
-│   └── src/                  # DID service source code
+│   ├── src/                  # DID service source code
+│   └── Dockerfile            # Container configuration
 ├── credential-service/       # Credential service
-│   └── src/                  # Credential service source code
+│   ├── src/                  # Credential service source code
+│   └── Dockerfile            # Container configuration
 ├── verification-service/     # Verification service
-│   └── src/                  # Verification service source code
+│   ├── src/                  # Verification service source code
+│   └── Dockerfile            # Container configuration
 ├── vault/                    # Vault configuration and integration
 │   ├── scripts/              # Vault initialization and configuration scripts
 │   │   ├── init_vault.sh     # Vault setup with secure secret generation
@@ -385,12 +443,27 @@ DIDentity/
 │   ├── vault_client.py       # Shared Vault client library with caching
 │   └── VAULT_INTEGRATION.md  # Detailed Vault documentation
 ├── monitoring/               # Monitoring configuration
-│   └── grafana/              # Grafana dashboards and config
+│   ├── grafana/              # Grafana dashboards and config
+│   ├── prometheus/           # Prometheus configuration and rules
+│   └── alertmanager/         # Alert manager configuration
 ├── monitoring-dashboard/     # Enhanced unified monitoring dashboard
 │   ├── main.py               # FastAPI backend with workflow testing API
 │   ├── templates/            # Enhanced dashboard templates
 │   │   └── dashboard.html    # Interactive dashboard with sequential workflow
 │   └── static/               # Dashboard assets
+├── tests/                    # Comprehensive testing suite
+│   ├── unit/                 # Unit tests for all services
+│   ├── integration/          # Integration tests
+│   ├── e2e/                  # End-to-end tests
+│   └── comprehensive_api_test.py # Complete API validation
+├── docs/                     # Documentation
+│   ├── api-documentation.yaml # OpenAPI specifications
+│   ├── developer-guide.md    # Development guidelines
+│   └── api-integration-guide.md # Integration documentation
+├── demo.py                   # Automated demonstration script
+├── interactive_demo.py       # Interactive demonstration with user input
+├── load_tester.py            # Standalone load testing utility
+├── init.sql                  # Database initialization with performance optimizations
 └── docker-compose.yml        # Complete service orchestration with Vault
 ```
 
@@ -414,6 +487,14 @@ DIDentity/
 - **Auto-Refresh Support**: Persistent sessions through dashboard auto-refresh
 - **Defense in Depth**: Multiple security layers from browser to target service
 
+### Database Security
+
+- **Vault-Managed Credentials**: Database passwords stored securely in Vault
+- **Connection Encryption**: Secure connections between services and database
+- **Data Checksums**: PostgreSQL data integrity verification
+- **Audit Logging**: Complete database access logging
+- **Resource Isolation**: Proper container resource limits and network isolation
+
 ## 🛠️ Development
 
 ### Running in Development
@@ -424,6 +505,32 @@ The current setup is optimized for development with:
 - Automatic secret initialization and service configuration
 - Simplified authentication for rapid development
 - Local storage with Docker volumes
+- Optimized database performance with comprehensive indexing
+
+### Testing Strategies
+
+#### **Unit Testing**
+```bash
+cd tests
+python -m pytest unit/ -v
+```
+
+#### **Integration Testing**
+```bash
+cd tests
+python -m pytest integration/ -v
+```
+
+#### **End-to-End Testing**
+```bash
+cd tests
+python -m pytest e2e/ -v
+```
+
+#### **Load Testing**
+```bash
+python load_tester.py --concurrent_users 20 --duration 120
+```
 
 ### Adding New Secrets
 
@@ -444,9 +551,21 @@ Use the Enhanced Monitoring Dashboard to test workflow modifications:
 3. Monitor real-time execution and results
 4. Use detailed error reporting for troubleshooting
 
+### Database Performance Optimization
 
+The database includes several performance optimizations:
 
+#### **Indexing Strategy**
+- **B-tree indexes** for standard lookups and sorting
+- **GIN indexes** for JSON document search and analysis
+- **Partial indexes** for filtered queries (e.g., active credentials)
+- **Composite indexes** for multi-column query patterns
 
+#### **Configuration Tuning**
+- **Memory allocation**: Optimized for typical workloads
+- **Connection management**: Proper pooling and limit settings
+- **Query optimization**: Enhanced statistics and planning
+- **Write performance**: Optimized WAL and checkpoint settings
 
 ## 📄 License
 
@@ -458,6 +577,7 @@ For questions, issues, or contributions:
 - Open an issue on GitHub
 - Check the monitoring dashboard for system health
 - Use the interactive workflow testing for troubleshooting
+- Review database performance metrics in Grafana
 
 ---
 
