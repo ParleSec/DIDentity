@@ -18,7 +18,7 @@ try:
     vault_client = VaultClient()
     VAULT_AVAILABLE = True
 except ImportError:
-    logging.warning("Vault client not available, using fallback configuration")
+    logging.warning("Vault client not available - THIS IS NOT SECURE FOR PRODUCTION")
     VAULT_AVAILABLE = False
 
 # Setup logging
@@ -27,14 +27,25 @@ logger = logging.getLogger(__name__)
 
 # Get secrets from Vault with fallback
 def get_secret(path, key=None):
-    """Get secret from Vault with fallback to environment variables"""
+    """Get secret from Vault - NO FALLBACK FOR PRODUCTION SECURITY"""
     if VAULT_AVAILABLE:
         try:
             return vault_client.get_secret(path, key)
         except VaultClientError as e:
             logger.error(f"Error fetching secret from Vault: {e}")
+            raise HTTPException(
+                status_code=500,
+                detail="Vault connection required for secure operation. Please check Vault configuration."
+            )
     
-    # Fallback to environment variables or defaults
+    # SECURITY: NO FALLBACK FOR JWT SECRETS IN PRODUCTION
+    if path == 'auth/jwt' and key == 'secret_key':
+        raise HTTPException(
+            status_code=500,
+            detail="JWT secret key must be retrieved from Vault for security. Fallback secrets are not allowed."
+        )
+    
+    # Limited fallback only for non-security-critical settings
     if path == 'database/config':
         if key == 'url':
             return os.environ.get('DATABASE_URL', 'postgresql://postgres:password@db:5432/decentralized_id')
@@ -49,9 +60,7 @@ def get_secret(path, key=None):
         elif key == 'database':
             return os.environ.get('DB_NAME', 'decentralized_id')
     elif path == 'auth/jwt':
-        if key == 'secret_key':
-            return os.environ.get('JWT_SECRET_KEY', 'fallback-secret-key')
-        elif key == 'algorithm':
+        if key == 'algorithm':
             return os.environ.get('JWT_ALGORITHM', 'HS256')
         elif key == 'token_expire_minutes':
             return int(os.environ.get('JWT_EXPIRE_MINUTES', '30'))
@@ -60,7 +69,7 @@ def get_secret(path, key=None):
     
     raise HTTPException(
         status_code=500,
-        detail=f"Failed to retrieve secret: {path}/{key}"
+        detail=f"Failed to retrieve secret: {path}/{key} - Vault connection required"
     )
 
 # Constants from Vault
@@ -76,15 +85,22 @@ def get_db_url():
     return os.environ.get('DATABASE_URL', 'postgresql://postgres:VaultSecureDB2024@db:5432/decentralized_id')
 
 def get_jwt_secret_key():
-    """Get JWT secret key from Vault or environment"""
+    """Get JWT secret key from Vault - NO FALLBACK FOR SECURITY"""
     if VAULT_AVAILABLE:
         try:
             return vault_client.get_jwt_secret_key()
         except VaultClientError as e:
             logger.error(f"Failed to get JWT secret from Vault: {str(e)}")
+            raise HTTPException(
+                status_code=500,
+                detail="JWT secret key must be retrieved from Vault for security"
+            )
     
-    # Fallback to environment variable
-    return os.environ.get('JWT_SECRET_KEY', 'fallback-secret-key')
+    # SECURITY: NO FALLBACK FOR JWT SECRETS
+    raise HTTPException(
+        status_code=500,
+        detail="Vault connection required for JWT secret key. Production systems must not use fallback secrets."
+    )
 
 def get_jwt_algorithm():
     """Get JWT algorithm from Vault or environment"""
@@ -110,10 +126,6 @@ def get_refresh_token_expire_days():
 # Security
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
-
-# In-memory blacklist for revoked tokens (in production, use Redis or a database)
-# This is a simple implementation - for production, use a persistent store
-revoked_tokens = set()
 
 # Global connection pool (reuse across requests)
 _db_pool = None
@@ -239,16 +251,46 @@ async def verify_refresh_token(token: str):
         raise HTTPException(status_code=401, detail="Invalid refresh token")
 
 async def get_current_user(token: str = Depends(oauth2_scheme)):
-    # Check if token is revoked
-    if token in revoked_tokens:
-        raise HTTPException(status_code=401, detail="Token has been revoked")
+    """Get current user and check if token is revoked using Redis"""
+    # Check if token is revoked using Redis
+    redis_client = await get_redis()
+    if redis_client:
+        try:
+            is_revoked = await redis_client.get(f"revoked_token:{token}")
+            if is_revoked:
+                raise HTTPException(status_code=401, detail="Token has been revoked")
+        except Exception as e:
+            logger.warning(f"Redis token check failed: {e}")
+            # Continue without Redis check if Redis is unavailable
     
     username = verify_token(token)
     return username
 
-def revoke_token(token: str):
-    """Add token to revoked tokens list"""
-    revoked_tokens.add(token)
+async def revoke_token(token: str):
+    """Add token to revoked tokens list using Redis"""
+    redis_client = await get_redis()
+    if redis_client:
+        try:
+            # Store revoked token with expiration matching token expiration
+            expire_minutes = get_token_expire_minutes()
+            await redis_client.setex(
+                f"revoked_token:{token}", 
+                expire_minutes * 60,  # Convert to seconds
+                "revoked"
+            )
+            logger.info("Token revoked and stored in Redis")
+        except Exception as e:
+            logger.error(f"Failed to revoke token in Redis: {e}")
+            raise HTTPException(
+                status_code=500, 
+                detail="Failed to revoke token securely"
+            )
+    else:
+        logger.error("Redis not available for secure token revocation")
+        raise HTTPException(
+            status_code=500,
+            detail="Secure token revocation requires Redis connection"
+        )
 
 # Password utilities
 def verify_password(plain_password, hashed_password):

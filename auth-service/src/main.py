@@ -5,6 +5,9 @@ from fastapi.openapi.docs import get_swagger_ui_html, get_redoc_html
 from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 import logging
 import os
 import json
@@ -21,6 +24,9 @@ os.environ["SERVICE_NAME"] = "auth-service"
 
 # Setup logging
 logger = logging.getLogger(__name__)
+
+# Initialize rate limiter
+limiter = Limiter(key_func=get_remote_address)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -57,16 +63,31 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# Add rate limiting
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 # Add instrumentation
 Instrumentator().instrument(app).expose(app)
 
-# Add CORS middleware
+# Add CORS middleware with more restrictive settings
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:3000",  # React development
+        "http://localhost:8080",  # Vue development
+    ],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_headers=[
+        "Authorization",
+        "Content-Type",
+        "X-Requested-With",
+        "Accept",
+        "Origin",
+        "X-CSRF-Token"
+    ],
+    expose_headers=["X-RateLimit-Limit", "X-RateLimit-Remaining"],
 )
 
 @app.get("/docs", include_in_schema=False)
@@ -115,13 +136,16 @@ async def generate_sdk(language: str):
     }
 
 @app.post("/signup", response_model=Token, tags=["auth"])
-async def signup(user: UserCreate, background_tasks: BackgroundTasks, request: Request, pool=Depends(get_db_pool)):
+@limiter.limit("100/minute")  # Limit signup attempts to prevent abuse
+async def signup(request: Request, user: UserCreate, background_tasks: BackgroundTasks, pool=Depends(get_db_pool)):
     """
     Register a new user and return an access token.
     
-    - **username**: Required username (must be unique)
+    - **username**: Required username (must be unique, 3-50 chars, alphanumeric + underscore/hyphen)
     - **email**: Required valid email address
-    - **password**: Required password (min length: 8)
+    - **password**: Required strong password (min 12 chars, uppercase, lowercase, digit, special char)
+    
+    Rate limited to 100 attempts per minute per IP address.
     """
     # Create a tracing span
     context = extract_context_from_request(request)
@@ -138,6 +162,17 @@ async def signup(user: UserCreate, background_tasks: BackgroundTasks, request: R
                     raise HTTPException(
                         status_code=400,
                         detail="Email already registered"
+                    )
+
+                # Check if username exists
+                existing_username = await conn.fetchrow(
+                    "SELECT id FROM users WHERE username = $1", user.username
+                )
+                if existing_username:
+                    logger.warning(f"Signup attempt with existing username: {user.username}")
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Username already taken"
                     )
 
                 # Create user
@@ -180,9 +215,12 @@ async def signup(user: UserCreate, background_tasks: BackgroundTasks, request: R
             )
 
 @app.post("/login", response_model=Token, tags=["auth"])
-async def login(form_data: OAuth2PasswordRequestForm = Depends()):
+@limiter.limit("500/minute")  # Limit login attempts to prevent brute force
+async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends()):
     """
     Authenticate a user and return an access token.
+    
+    Rate limited to 500 attempts per minute per IP address to prevent brute force attacks.
     """
     try:
         pool = await get_db_pool()
@@ -194,6 +232,8 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
             )
             
             if not user or not pwd_context.verify(form_data.password, user["password_hash"]):
+                # Log the failed attempt
+                logger.warning(f"Failed login attempt for email: {form_data.username} from IP: {get_remote_address(request)}")
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Incorrect email or password",
@@ -204,7 +244,7 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
             token_data = {"sub": user["email"], "user_id": str(user["id"])}
             tokens = create_tokens(token_data)
             
-            logger.info(f"User logged in: {user['email']}")
+            logger.info(f"User logged in: {user['email']} from IP: {get_remote_address(request)}")
             return tokens
     except HTTPException:
         raise
@@ -216,37 +256,39 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
         )
 
 @app.post("/token", response_model=Token, tags=["auth"])
-async def token(form_data: OAuth2PasswordRequestForm = Depends(), pool=Depends(get_db_pool)):
+@limiter.limit("5/minute")  # Rate limit token endpoint
+async def token(request: Request, form_data: OAuth2PasswordRequestForm = Depends(), pool=Depends(get_db_pool)):
     """
     OAuth2 compatible token endpoint.
     
-    This endpoint is used for obtaining access tokens through the Password Grant flow.
-    It is compatible with standard OAuth2 clients.
+    Rate limited to 5 attempts per minute per IP address.
     """
-    # Reuse the login endpoint implementation
-    return await login(form_data, pool)
+    # Reuse login logic
+    return await login(request, form_data)
 
 @app.post("/token/refresh", response_model=Token, tags=["auth"])
-async def refresh_token(token_data: TokenRefresh):
+@limiter.limit("1000/minute")  # Rate limit token refresh
+async def refresh_token(request: Request, token_data: TokenRefresh):
     """
     Refresh an access token using a refresh token.
     
     - **refresh_token**: Valid refresh token previously issued
     
     Returns a new access token and refresh token pair.
+    Rate limited to 1000 attempts per minute per IP address.
     """
     try:
         # Verify refresh token
         payload = await verify_refresh_token(token_data.refresh_token)
         
         # Revoke old refresh token
-        revoke_token(token_data.refresh_token)
+        await revoke_token(token_data.refresh_token)
         
         # Create new tokens
         user_data = {"sub": payload["sub"], "user_id": payload["user_id"]}
         tokens = create_tokens(user_data)
         
-        logger.info(f"Refreshed token for user: {payload['sub']}")
+        logger.info(f"Refreshed token for user: {payload['sub']} from IP: {get_remote_address(request)}")
         return tokens
     except HTTPException:
         raise
@@ -258,30 +300,31 @@ async def refresh_token(token_data: TokenRefresh):
         )
 
 @app.post("/token/revoke", tags=["auth"])
-async def revoke_token_endpoint(token_data: TokenRevoke, current_user: dict = Depends(verify_token)):
+@limiter.limit("1000/minute")  # Allow more revoke attempts
+async def revoke_token_endpoint(request: Request, token_data: TokenRevoke, current_user: dict = Depends(verify_token)):
     """
-    Revoke a token so it can no longer be used.
+    Revoke an access or refresh token.
     
-    - **token**: The token to revoke
-    - **token_type_hint**: Type of token ("access_token" or "refresh_token")
-    
-    Requires authentication with a valid access token.
+    Rate limited to 1000 attempts per minute per IP address.
     """
     try:
-        # Add token to revocation list
-        revoke_token(token_data.token)
+        await revoke_token(token_data.token)
+        logger.info(f"Token revoked for user: {current_user} from IP: {get_remote_address(request)}")
         return {"message": "Token revoked successfully"}
     except Exception as e:
         logger.error(f"Error revoking token: {str(e)}")
         raise HTTPException(
             status_code=500,
-            detail="Internal server error during token revocation"
+            detail="Failed to revoke token"
         )
 
 @app.get("/health", tags=["health"])
-async def health_check():
+@limiter.limit("3000/minute")  # Rate limit health checks
+async def health_check(request: Request):
     """
     Health check endpoint that verifies the service and database connection.
+    
+    Rate limited to 3000 requests per minute per IP address.
     """
     try:
         # Use existing pool instead of creating new connection
