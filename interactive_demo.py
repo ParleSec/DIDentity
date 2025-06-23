@@ -136,6 +136,45 @@ class DIDentityDemoApp:
         
         # Set up proper window close handling
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
+    
+    def generate_secure_password(self, length: int = 16) -> str:
+        """Generate a secure random password that meets validation requirements"""
+        import string
+        
+        # Ensure we have at least one character from each required category
+        uppercase = random.choice(string.ascii_uppercase)
+        lowercase = random.choice(string.ascii_lowercase)
+        digit = random.choice(string.digits)
+        special = random.choice("!@#$%^&*(),.?\":{}|<>")
+        
+        # Generate remaining characters from all allowed categories
+        all_chars = string.ascii_letters + string.digits + "!@#$%^&*(),.?\":{}|<>"
+        remaining_length = length - 4  # We already have 4 required characters
+        
+        remaining_chars = ''.join(random.choice(all_chars) for _ in range(remaining_length))
+        
+        # Combine all characters and shuffle them
+        password_chars = list(uppercase + lowercase + digit + special + remaining_chars)
+        random.shuffle(password_chars)
+        
+        # Join to create final password
+        password = ''.join(password_chars)
+        
+        # Verify it doesn't contain common weak patterns
+        weak_patterns = ['123456', 'password', 'qwerty', 'abc123', '111111']
+        password_lower = password.lower()
+        
+        # If it contains weak patterns, regenerate (recursive call)
+        if any(pattern in password_lower for pattern in weak_patterns):
+            return self.generate_secure_password(length)
+            
+        return password
+    
+    def regenerate_password(self):
+        """Regenerate a new secure password"""
+        new_password = self.generate_secure_password()
+        self.password_var.set(new_password)
+        logger.info("New secure password generated")
         
     def on_closing(self):
         """Handle window close event properly"""
@@ -195,8 +234,12 @@ class DIDentityDemoApp:
         ttk.Entry(form_frame, textvariable=self.email_var, width=30).grid(row=1, column=1, sticky="w", padx=5)
         
         ttk.Label(form_frame, text="Password:").grid(row=2, column=0, sticky="w", pady=5)
-        self.password_var = tk.StringVar(value="SecurePassword123")
-        ttk.Entry(form_frame, textvariable=self.password_var, width=30, show="*").grid(row=2, column=1, sticky="w", padx=5)
+        self.password_var = tk.StringVar(value=self.generate_secure_password())
+        password_entry = ttk.Entry(form_frame, textvariable=self.password_var, width=30, show="*")
+        password_entry.grid(row=2, column=1, sticky="w", padx=5)
+        
+        # Add a button to regenerate password
+        ttk.Button(form_frame, text="🔄", command=self.regenerate_password, width=3).grid(row=2, column=2, padx=5)
         
         # Register button
         self.register_button = ttk.Button(form_frame, text="Register User", command=self.handle_registration)
