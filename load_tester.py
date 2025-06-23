@@ -134,7 +134,7 @@ class DIDentityLoadTester:
             payload = {
                 'username': f'loadtest_user_{user_id}_{int(time.time())}',
                 'email': f'loadtest_{user_id}_{int(time.time())}@example.com',
-                'password': f'testpass_{random.randint(1000, 9999)}'
+                'password': f'TestAuthentication{random.randint(1000, 9999)}!'
             }
             
             async with self.session.post(

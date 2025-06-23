@@ -135,7 +135,7 @@ class IdentityDemo:
             self.register_user(
                 username="User" + random_id,
                 email=f"user_{random_id}@example.com",
-                password="SecurePassword123"
+                password="MySecureAuth2024!"
             )
 
             # Step 2: Create DID

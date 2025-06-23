@@ -16,7 +16,13 @@ from .schemas import UserCreate, UserLogin, Token, TokenRefresh, TokenRevoke
 from .dependencies import get_db_pool, oauth2_scheme, verify_token, verify_refresh_token, pwd_context, logger, get_db_url, get_redis
 from .dependencies import create_access_token, create_refresh_token, create_tokens, revoke_token
 from .messaging import event_bus
-from .telemetry import extract_context_from_request, create_span, add_span_attributes, mark_span_error
+# Temporarily disable telemetry due to import issues
+# from .telemetry import extract_context_from_request, create_span, add_span_attributes, mark_span_error
+from contextlib import nullcontext
+extract_context_from_request = lambda x: None
+create_span = lambda *args, **kwargs: nullcontext()
+add_span_attributes = lambda x: None
+mark_span_error = lambda x: None
 from prometheus_fastapi_instrumentator import Instrumentator
 
 # Set service name for messaging

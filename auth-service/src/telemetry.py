@@ -3,13 +3,18 @@ import logging
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+
+# Setup logging first
+logger = logging.getLogger(__name__)
+
+try:
+    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+except ImportError:
+    logger.warning("OTLP exporter not available, telemetry will be disabled")
+    OTLPSpanExporter = None
 from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 from fastapi import Request
-
-# Setup logging
-logger = logging.getLogger(__name__)
 
 # Initialize tracer
 def init_tracer():
@@ -29,6 +34,10 @@ def init_tracer():
         provider = TracerProvider(resource=resource)
         
         # Create an OTLP exporter
+        if OTLPSpanExporter is None:
+            logger.warning("OTLP exporter not available, skipping telemetry setup")
+            return None
+        
         otlp_exporter = OTLPSpanExporter(
             endpoint=os.environ.get("OTLP_ENDPOINT", "jaeger:4317"),
             insecure=True

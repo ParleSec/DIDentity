@@ -793,7 +793,7 @@ async def test_didientity_workflow():
         test_user = {
             "username": f"testuser_{timestamp}",
             "email": f"test_{timestamp}@example.com",
-            "password": "TestPassword123"
+            "password": "TestPassword123!"
         }
         
         results = {
