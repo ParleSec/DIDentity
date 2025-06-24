@@ -248,6 +248,98 @@ class DIDentityLoadTester:
             response_time = time.time() - start_time
             return False, response_time, str(e)
     
+    async def test_health_endpoint(self, service: str) -> Tuple[bool, float, Optional[str]]:
+        """Test service health endpoint"""
+        start_time = time.time()
+        
+        try:
+            async with self.session.get(
+                f"{self.services[service]}/health",
+                timeout=10
+            ) as response:
+                response_time = time.time() - start_time
+                
+                if response.status == 200:
+                    data = await response.json()
+                    status = data.get('status', 'unknown')
+                    return True, response_time, status
+                else:
+                    return False, response_time, f"HTTP {response.status}"
+                    
+        except Exception as e:
+            response_time = time.time() - start_time
+            return False, response_time, str(e)
+
+    async def test_status_endpoint(self, service: str) -> Tuple[bool, float, Optional[str]]:
+        """Test lightweight status endpoint (auth service only)"""
+        start_time = time.time()
+        
+        try:
+            async with self.session.get(
+                f"{self.services[service]}/status",
+                timeout=5
+            ) as response:
+                response_time = time.time() - start_time
+                
+                if response.status == 200:
+                    data = await response.json()
+                    status = data.get('status', 'unknown')
+                    return True, response_time, status
+                else:
+                    return False, response_time, f"HTTP {response.status}"
+                    
+        except Exception as e:
+            response_time = time.time() - start_time
+            return False, response_time, str(e)
+
+    async def test_pool_metrics_endpoint(self) -> Tuple[bool, float, Optional[Dict]]:
+        """Test database pool metrics endpoint (auth service only)"""
+        start_time = time.time()
+        
+        try:
+            async with self.session.get(
+                f"{self.services['auth']}/metrics/pool",
+                timeout=10
+            ) as response:
+                response_time = time.time() - start_time
+                
+                if response.status == 200:
+                    data = await response.json()
+                    return True, response_time, data
+                else:
+                    return False, response_time, f"HTTP {response.status}"
+                    
+        except Exception as e:
+            response_time = time.time() - start_time
+            return False, response_time, str(e)
+
+    async def test_rate_limiting(self, endpoint: str, service: str = 'auth') -> Tuple[bool, float, int]:
+        """Test rate limiting by making rapid requests"""
+        start_time = time.time()
+        requests_made = 0
+        rate_limit_hit = False
+        
+        try:
+            # Make rapid requests to trigger rate limiting
+            for i in range(50):  # Try to exceed rate limits
+                async with self.session.get(
+                    f"{self.services[service]}{endpoint}",
+                    timeout=5
+                ) as response:
+                    requests_made += 1
+                    if response.status == 429:  # Rate limited
+                        rate_limit_hit = True
+                        break
+                    # Small delay to avoid overwhelming
+                    await asyncio.sleep(0.01)
+                    
+            response_time = time.time() - start_time
+            return rate_limit_hit, response_time, requests_made
+            
+        except Exception as e:
+            response_time = time.time() - start_time
+            return False, response_time, requests_made
+    
     async def run_complete_workflow(self, user_id: str) -> Dict[str, Any]:
         """Run complete DIDentity workflow for a single user"""
         workflow_start = time.time()
@@ -432,9 +524,19 @@ class DIDentityLoadTester:
                             success, op_time, _ = await self.issue_credential(setup_data['did'])
                         elif operation == 'verify_credential' and 'credential_id' in setup_data:
                             success, op_time, _ = await self.verify_credential(setup_data['credential_id'])
+                        elif operation == 'health_check':
+                            # Test all services
+                            service = list(self.services.keys())[counter % len(self.services)]
+                            success, op_time, _ = await self.test_health_endpoint(service)
+                        elif operation == 'status_check':
+                            success, op_time, _ = await self.test_status_endpoint('auth')
+                        elif operation == 'pool_metrics':
+                            success, op_time, _ = await self.test_pool_metrics_endpoint()
+                        elif operation == 'rate_limit_test':
+                            success, op_time, _ = await self.test_rate_limiting('/health')
                         else:
                             success, op_time = False, 0
-                            metrics.add_error("Setup data missing")
+                            metrics.add_error("Setup data missing or unknown operation")
                         
                         metrics.total_requests += 1
                         metrics.add_response_time(op_time)
@@ -562,6 +664,205 @@ class DIDentityLoadTester:
         metrics.calculate_percentiles()
         return metrics
 
+    async def run_chaos_testing(self, duration: int = 120, base_concurrency: int = 5) -> LoadTestMetrics:
+        """
+        Run chaos testing that combines multiple stress patterns to test system resilience.
+        
+        This includes:
+        - High concurrency bursts
+        - Rate limiting tests
+        - Error injection scenarios
+        - Mixed workflow and individual operation testing
+        """
+        logger.info(f"Starting chaos testing: {duration}s duration with base concurrency {base_concurrency}")
+        
+        metrics = LoadTestMetrics()
+        start_time = time.time()
+        end_time = start_time + duration
+        
+        # Create different types of chaos workers
+        chaos_tasks = []
+        
+        # 1. Burst workflow workers (high concurrency periods)
+        async def burst_workflow_worker(worker_id: int):
+            counter = 0
+            while time.time() < end_time:
+                # Random burst periods
+                if random.random() < 0.3:  # 30% chance of burst
+                    burst_duration = random.uniform(2, 8)
+                    burst_end = time.time() + burst_duration
+                    
+                    # High concurrency burst
+                    tasks = []
+                    for _ in range(random.randint(3, 8)):
+                        task = asyncio.create_task(
+                            self.run_complete_workflow(f"burst_{worker_id}_{counter}")
+                        )
+                        tasks.append(task)
+                        counter += 1
+                    
+                    # Wait for burst to complete or timeout
+                    try:
+                        results = await asyncio.wait_for(
+                            asyncio.gather(*tasks, return_exceptions=True),
+                            timeout=burst_duration + 5
+                        )
+                        
+                        for result in results:
+                            if isinstance(result, dict):
+                                metrics.total_requests += 1
+                                if result.get('success'):
+                                    metrics.successful_requests += 1
+                                else:
+                                    metrics.failed_requests += 1
+                                    metrics.add_error(f"Burst workflow: {result.get('error', 'unknown')[:30]}")
+                                
+                                metrics.add_response_time(result.get('total_time', 0))
+                    
+                    except asyncio.TimeoutError:
+                        metrics.failed_requests += len(tasks)
+                        metrics.add_error("Burst workflow timeout")
+                
+                await asyncio.sleep(random.uniform(1, 5))
+        
+        # 2. Rate limiting chaos worker
+        async def rate_limit_chaos_worker():
+            endpoints = ['/health', '/status', '/metrics/pool']
+            while time.time() < end_time:
+                endpoint = random.choice(endpoints)
+                try:
+                    success, response_time, requests_made = await self.test_rate_limiting(endpoint)
+                    metrics.total_requests += requests_made
+                    if success:
+                        metrics.successful_requests += requests_made - 1  # Last one hit rate limit
+                        metrics.failed_requests += 1  # Rate limited request
+                        metrics.add_error("Rate limit triggered (expected)")
+                    else:
+                        metrics.successful_requests += requests_made
+                    
+                    metrics.add_response_time(response_time)
+                    
+                except Exception as e:
+                    metrics.failed_requests += 1
+                    metrics.add_error(f"Rate limit test error: {str(e)[:30]}")
+                
+                await asyncio.sleep(random.uniform(10, 30))
+        
+        # 3. Mixed operation chaos worker
+        async def mixed_operation_worker(worker_id: int):
+            operations = ['health_check', 'status_check', 'pool_metrics', 'register']
+            counter = 0
+            
+            while time.time() < end_time:
+                operation = random.choice(operations)
+                
+                try:
+                    if operation == 'health_check':
+                        service = random.choice(list(self.services.keys()))
+                        success, op_time, _ = await self.test_health_endpoint(service)
+                    elif operation == 'status_check':
+                        success, op_time, _ = await self.test_status_endpoint('auth')
+                    elif operation == 'pool_metrics':
+                        success, op_time, _ = await self.test_pool_metrics_endpoint()
+                    elif operation == 'register':
+                        success, op_time, _ = await self.register_user(f"chaos_{worker_id}_{counter}")
+                    
+                    metrics.total_requests += 1
+                    metrics.add_response_time(op_time)
+                    
+                    if success:
+                        metrics.successful_requests += 1
+                    else:
+                        metrics.failed_requests += 1
+                        metrics.add_error(f"Chaos {operation} failed")
+                    
+                    counter += 1
+                    
+                except Exception as e:
+                    metrics.failed_requests += 1
+                    metrics.add_error(f"Chaos operation error: {str(e)[:30]}")
+                
+                # Random delays to create unpredictable traffic
+                await asyncio.sleep(random.uniform(0.1, 2.0))
+        
+        # 4. Error injection worker (invalid requests)
+        async def error_injection_worker():
+            while time.time() < end_time:
+                try:
+                    # Send invalid requests to test error handling
+                    invalid_tests = [
+                        # Invalid signup data
+                        ('POST', f"{self.services['auth']}/signup", {
+                            'username': 'x',  # Too short
+                            'email': 'invalid-email',
+                            'password': 'weak'
+                        }),
+                        # Invalid DID creation
+                        ('POST', f"{self.services['did']}/dids", {
+                            'method': 'invalid_method',
+                            'identifier': ''
+                        }),
+                        # Non-existent endpoints
+                        ('GET', f"{self.services['auth']}/nonexistent", {}),
+                        ('GET', f"{self.services['did']}/invalid", {}),
+                    ]
+                    
+                    method, url, data = random.choice(invalid_tests)
+                    start_time_op = time.time()
+                    
+                    if method == 'POST':
+                        async with self.session.post(url, json=data, timeout=10) as response:
+                            op_time = time.time() - start_time_op
+                    else:
+                        async with self.session.get(url, timeout=10) as response:
+                            op_time = time.time() - start_time_op
+                    
+                    metrics.total_requests += 1
+                    metrics.add_response_time(op_time)
+                    
+                    # Expect these to fail with 4xx errors
+                    if 400 <= response.status < 500:
+                        metrics.successful_requests += 1  # Expected failure
+                    else:
+                        metrics.failed_requests += 1
+                        metrics.add_error(f"Unexpected response to invalid request: {response.status}")
+                
+                except Exception as e:
+                    metrics.failed_requests += 1
+                    metrics.add_error(f"Error injection failed: {str(e)[:30]}")
+                
+                await asyncio.sleep(random.uniform(5, 15))
+        
+        # Start chaos workers
+        chaos_tasks.extend([
+            asyncio.create_task(burst_workflow_worker(i)) 
+            for i in range(base_concurrency)
+        ])
+        chaos_tasks.append(asyncio.create_task(rate_limit_chaos_worker()))
+        chaos_tasks.extend([
+            asyncio.create_task(mixed_operation_worker(i)) 
+            for i in range(base_concurrency // 2)
+        ])
+        chaos_tasks.append(asyncio.create_task(error_injection_worker()))
+        
+        try:
+            await asyncio.gather(*chaos_tasks, return_exceptions=True)
+        except Exception as e:
+            logger.error(f"Chaos testing error: {e}")
+        
+        # Calculate final metrics
+        metrics.total_duration = time.time() - start_time
+        if metrics.total_duration > 0:
+            metrics.requests_per_second = metrics.total_requests / metrics.total_duration
+        
+        metrics.calculate_percentiles()
+        
+        logger.info(f"Chaos testing completed: {metrics.total_requests} requests, "
+                   f"{metrics.successful_requests} successful, "
+                   f"{metrics.failed_requests} failed")
+        
+        return metrics
+
 
 class LoadTestReporter:
     """Generate comprehensive load test reports"""
@@ -671,6 +972,20 @@ class LoadTestReporter:
             recommendations.append("Implement better error handling")
             recommendations.append("Add more comprehensive input validation")
         
+        # Check for specific error patterns
+        error_types = list(metrics.errors_by_type.keys())
+        if any('pool' in error.lower() for error in error_types):
+            recommendations.append("Database pool issues detected - check pool configuration")
+            recommendations.append("Monitor database connection pool metrics")
+        
+        if any('rate limit' in error.lower() for error in error_types):
+            recommendations.append("Rate limiting is working correctly")
+            recommendations.append("Consider adjusting rate limits if needed")
+        
+        if any('timeout' in error.lower() for error in error_types):
+            recommendations.append("Network timeouts detected - check service health")
+            recommendations.append("Consider increasing timeout values or scaling")
+        
         if not recommendations:
             recommendations.append("System performing well - monitor for changes")
         
@@ -715,10 +1030,12 @@ async def _demo():
 def _build_arg_parser() -> argparse.ArgumentParser:
     """Create CLI argument parser for the load-testing suite."""
     parser = argparse.ArgumentParser(description="DIDentity Load Testing CLI")
-    parser.add_argument('--pattern', choices=['sustained', 'burst', 'ramp'], default='sustained',
+    parser.add_argument('--pattern', choices=['sustained', 'burst', 'ramp', 'chaos'], default='sustained',
                         help='Traffic pattern to use (complete workflow only)')
     parser.add_argument('--operation', choices=['workflow', 'register', 'create_did',
-                                                'issue_credential', 'verify_credential'],
+                                                'issue_credential', 'verify_credential',
+                                                'health_check', 'status_check', 'pool_metrics',
+                                                'rate_limit_test'],
                         default='workflow', help='Which operation to test')
     parser.add_argument('--duration', type=int, default=60, help='Total test duration in seconds')
     parser.add_argument('--concurrent-users', type=int, default=5,
@@ -750,6 +1067,11 @@ async def _run_cli(args):
                 metrics = await tester.run_mixed_load_test(
                     duration=args.duration,
                     concurrent_users=args.concurrent_users
+                )
+            elif args.pattern == 'chaos':
+                metrics = await tester.run_chaos_testing(
+                    duration=args.duration,
+                    base_concurrency=args.concurrent_users
                 )
             else:
                 metrics = await tester.run_pattern_load_test(
