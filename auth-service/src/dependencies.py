@@ -9,6 +9,9 @@ from datetime import datetime, timedelta, timezone
 from jose import JWTError, jwt
 from typing import Optional, Dict, List
 from fastapi import Depends, HTTPException, status
+import asyncio
+import time
+from dataclasses import dataclass
 
 # Add vault directory to Python path
 sys.path.append('/app/vault')
@@ -24,6 +27,20 @@ except ImportError:
 # Setup logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
+
+@dataclass
+class PoolMonitoringStats:
+    """Database pool monitoring statistics"""
+    total_requests: int = 0
+    successful_connections: int = 0
+    failed_connections: int = 0
+    avg_connection_time: float = 0.0
+    max_connection_time: float = 0.0
+    last_health_check: Optional[datetime] = None
+    pool_exhaustion_count: int = 0
+    
+# Global pool monitoring
+_pool_stats = PoolMonitoringStats()
 
 # Get secrets from Vault with fallback
 def get_secret(path, key=None):
@@ -132,8 +149,8 @@ _db_pool = None
 _redis_client = None
 
 async def get_db_pool():
-    """Get or create database connection pool"""
-    global _db_pool
+    """Get or create database connection pool with enhanced monitoring"""
+    global _db_pool, _pool_stats
     if _db_pool is None:
         try:
             _db_pool = await asyncpg.create_pool(
@@ -147,14 +164,71 @@ async def get_db_pool():
                     'tcp_keepalives_interval': '30',
                     'tcp_keepalives_count': '3',
                 },
-                max_inactive_connection_lifetime=300  # 5 minutes
+                max_inactive_connection_lifetime=300,  # 5 minutes
+                # Enhanced monitoring callbacks
+                setup=_setup_connection,
+                init=_init_connection
             )
             logger.info(f"Database pool created: min=10, max=50")
+            
+            # Start pool monitoring task
+            asyncio.create_task(_monitor_pool_health())
+            
         except Exception as e:
             logger.error(f"Failed to create database pool: {e}")
+            _pool_stats.failed_connections += 1
             raise HTTPException(status_code=500, detail="Database connection failed")
     
     return _db_pool
+
+async def _setup_connection(conn):
+    """Setup callback for new connections"""
+    await conn.execute("SET timezone = 'UTC'")
+    await conn.execute("SET statement_timeout = '30s'")
+
+async def _init_connection(conn):
+    """Initialize callback for each connection acquisition"""
+    _pool_stats.successful_connections += 1
+
+async def _monitor_pool_health():
+    """Background task to monitor pool health"""
+    global _db_pool, _pool_stats
+    
+    while True:
+        try:
+            await asyncio.sleep(60)  # Check every minute
+            
+            if _db_pool is None:
+                continue
+            
+            # Log pool statistics
+            pool_size = _db_pool.get_size()
+            idle_size = _db_pool.get_idle_size()
+            used_connections = pool_size - idle_size
+            
+            # Check for pool exhaustion
+            if idle_size == 0 and pool_size >= 45:  # 90% of max pool size
+                _pool_stats.pool_exhaustion_count += 1
+                logger.warning(f"Database pool near exhaustion: {used_connections}/{pool_size} connections in use")
+            
+            # Log health metrics every 5 minutes
+            now = datetime.now(timezone.utc)
+            if (_pool_stats.last_health_check is None or 
+                (now - _pool_stats.last_health_check).total_seconds() >= 300):
+                
+                _pool_stats.last_health_check = now
+                logger.info(f"Pool Health - Size: {pool_size}, Idle: {idle_size}, "
+                          f"Success Rate: {_pool_stats.successful_connections}/{_pool_stats.total_requests}, "
+                          f"Exhaustion Events: {_pool_stats.pool_exhaustion_count}")
+                
+                # Alert if pool performance is poor
+                if _pool_stats.total_requests > 0:
+                    success_rate = _pool_stats.successful_connections / _pool_stats.total_requests
+                    if success_rate < 0.95:  # Less than 95% success rate
+                        logger.warning(f"Poor database pool performance: {success_rate:.2%} success rate")
+                        
+        except Exception as e:
+            logger.error(f"Pool monitoring error: {e}")
 
 async def get_redis():
     """Get or create Redis connection"""
@@ -179,22 +253,58 @@ async def get_redis():
     
     return _redis_client
 
-# Database connection with pool reuse
+# Database connection with pool reuse and monitoring
 async def get_db_connection():
-    """Get database connection from pool"""
+    """Get database connection from pool with monitoring"""
+    global _pool_stats
+    start_time = time.time()
+    _pool_stats.total_requests += 1
+    
     try:
         pool = await get_db_pool()
         if not pool:
+            _pool_stats.failed_connections += 1
             raise HTTPException(status_code=500, detail="Database pool not available")
         
+        # Monitor connection acquisition time
         async with pool.acquire() as conn:
+            connection_time = time.time() - start_time
+            
+            # Update timing statistics
+            if connection_time > _pool_stats.max_connection_time:
+                _pool_stats.max_connection_time = connection_time
+                
+            # Update running average
+            if _pool_stats.avg_connection_time == 0:
+                _pool_stats.avg_connection_time = connection_time
+            else:
+                _pool_stats.avg_connection_time = (
+                    _pool_stats.avg_connection_time * 0.9 + connection_time * 0.1
+                )
+            
+            # Alert on slow connections
+            if connection_time > 5.0:  # More than 5 seconds
+                logger.warning(f"Slow database connection acquisition: {connection_time:.2f}s")
+            
             yield conn
+            
     except asyncpg.InvalidPasswordError:
+        _pool_stats.failed_connections += 1
         logger.error("Database authentication failed")
         raise HTTPException(status_code=500, detail="Database authentication failed")
+    except asyncpg.TooManyConnectionsError:
+        _pool_stats.failed_connections += 1
+        _pool_stats.pool_exhaustion_count += 1
+        logger.error("Database pool exhausted - too many connections")
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable - high load")
     except Exception as e:
+        _pool_stats.failed_connections += 1
         logger.error(f"Database connection error: {str(e)}")
         raise HTTPException(status_code=500, detail="Database connection error")
+
+def get_pool_stats():
+    """Get current pool monitoring statistics"""
+    return _pool_stats
 
 # JWT token functions
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):

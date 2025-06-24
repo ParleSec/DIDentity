@@ -180,6 +180,10 @@ services:
       - REDIS_URL=redis://redis:6379
       - SERVICE_NAME=auth-service
       - OTLP_ENDPOINT=jaeger:4317
+      # Enhanced resource configuration
+      - UVICORN_WORKERS=4
+      - UVICORN_MAX_REQUESTS=1000
+      - UVICORN_MAX_REQUESTS_JITTER=100
     volumes:
       - ./vault:/app/vault:ro
     depends_on:
@@ -200,18 +204,41 @@ services:
         limits:
           memory: 1G
           cpus: '2'
+          # Additional limits for better resource control
+          pids: 1024
         reservations:
           memory: 512M
           cpus: '1'
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+      # Enhanced placement constraints
+      placement:
+        max_replicas_per_node: 1
+    # Enhanced health check for better chaos testing resilience
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "-H", "Accept: application/json", "http://localhost:8000/health"]
       interval: 15s
       timeout: 10s
-      retries: 3
-      start_period: 30s
+      retries: 5
+      start_period: 60s
+    # Resource monitoring
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - app-network
     restart: unless-stopped
+    # Security hardening
+    security_opt:
+      - no-new-privileges:true
+    read_only: false
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=100m
 
   did-service:
     build: ./did-service
