@@ -15,6 +15,6 @@ aioredis>=2.0.1       # Async Redis client for caching
 opentelemetry-api>=1.20.0     # OpenTelemetry API
 opentelemetry-sdk>=1.20.0     # OpenTelemetry SDK
 opentelemetry-exporter-otlp>=1.20.0  # OpenTelemetry OTLP exporter
-urllib3>=2.2.2 # not directly required, pinned by Snyk to avoid a vulnerability
+urllib3>=2.5.0 # not directly required, pinned by Snyk to avoid a vulnerability
 zipp>=3.19.1 # not directly required, pinned by Snyk to avoid a vulnerability
 h11>=0.16.0 # not directly required, pinned by Snyk to avoid a vulnerability
