@@ -1,5 +1,5 @@
 # Multi-stage build to reduce final image size
-FROM python:3.12-slim as builder
+FROM python:3.14.0rc1-slim as builder
 
 WORKDIR /app
 
@@ -20,7 +20,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --user -r requirements.txt
 
 # Final stage - runtime image
-FROM python:3.12-slim
+FROM python:3.14.0rc1-slim
 
 # Create non-root user for security
 RUN groupadd -r authservice && useradd -r -g authservice authservice
